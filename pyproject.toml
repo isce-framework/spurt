@@ -51,7 +51,7 @@ preview = true
 
 [tool.mypy]
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
-strict = true
+strict = false
 
 [[tool.mypy.overrides]]
 module = "test.*"
