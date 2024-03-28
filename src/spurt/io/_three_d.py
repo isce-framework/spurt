@@ -1,9 +1,11 @@
+"""Handle 3D interfaces for unwrapping."""
+
 from __future__ import annotations
 
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 
-from ._stack import InputStackDataset
+from ._stack import InputInterface
 
 __all__ = [
     "Reg3DInput",
@@ -11,7 +13,7 @@ __all__ = [
 ]
 
 
-class Reg3DInput(InputStackDataset):
+class Reg3DInput(InputInterface):
     """A single numpy 3D array as input.
 
     A 2D image will just be a 3D array with size of time axis set to 1. This is
@@ -130,7 +132,7 @@ class Reg3DInput(InputStackDataset):
         return self._data[tuple(ind)].ravel()
 
 
-class Irreg3DInput(InputStackDataset):
+class Irreg3DInput(InputInterface):
     """A single numpy 2D array as input.
 
     One axis represents time and the other some flattened representation in space.

@@ -1,3 +1,5 @@
+"""Protocols for input and output stack interfaces from unwrapping modules."""
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
@@ -6,13 +8,13 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 __all__ = [
-    "InputStackDataset",
-    "OutputStackDataset",
+    "InputInterface",
+    "OutputInterface",
 ]
 
 
 @runtime_checkable
-class StackDataset(Protocol):
+class IOInterface(Protocol):
     """
     Common stack interface for input and output.
 
@@ -43,7 +45,7 @@ class StackDataset(Protocol):
 
 
 @runtime_checkable
-class InputStackDataset(StackDataset, Protocol):
+class InputInterface(IOInterface, Protocol):
     """
     An array-like interface for reading input datasets.
 
@@ -59,7 +61,7 @@ class InputStackDataset(StackDataset, Protocol):
 
 
 @runtime_checkable
-class OutputStackDataset(StackDataset, Protocol):
+class OutputInterface(IOInterface, Protocol):
     """
     An array-like interface for writing output datasets.
 
@@ -70,5 +72,5 @@ class OutputStackDataset(StackDataset, Protocol):
     def set_time_slice(self, key: int, array: ArrayLike) -> None:
         """Write a block of data in time."""
 
-    def spatial_slice(self, key: int, array: ArrayLike) -> None:
+    def set_spatial_slice(self, key: int, array: ArrayLike) -> None:
         """Write a block of data in space."""
