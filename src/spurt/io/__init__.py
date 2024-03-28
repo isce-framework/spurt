@@ -6,6 +6,8 @@ from ._three_d import Irreg3DInput, Reg3DInput
 __all__ = [
     "InputInterface",
     "OutputInterface",
+    "InputStackInterface",
+    "OutputStackInterface",
     "Reg3DInput",
     "Irreg3DInput",
 ]
@@ -13,8 +15,8 @@ __all__ = [
 
 def __getattr__(name: str) -> Any:
     if name == "Raster":
-        # This module depends on `rasterio` so load it lazily to avoid an ImportError
-        # for users that don't need `Raster`.
+        # This module depends on `rasterio` so load it lazily to avoid an
+        # ImportError for users that don't need `Raster`
         from ._raster import Raster
 
         return Raster

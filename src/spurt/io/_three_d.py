@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 
-from ._stack import InputInterface
+from ._stack import InputInterface, InputStackInterface
 
 __all__ = [
     "Reg3DInput",
@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 
-class Reg3DInput(InputInterface):
+class Reg3DInput(InputStackInterface):
     """A single numpy 3D array as input.
 
     A 2D image will just be a 3D array with size of time axis set to 1. This is
@@ -23,7 +23,7 @@ class Reg3DInput(InputInterface):
 
     def __init__(
         self,
-        data: np.ndarray,
+        data: InputInterface,
         time_dim: int = 0,
     ):
         """Initialize a stack interface for a numpy array.
@@ -132,7 +132,7 @@ class Reg3DInput(InputInterface):
         return self._data[tuple(ind)].ravel()
 
 
-class Irreg3DInput(InputInterface):
+class Irreg3DInput(InputStackInterface):
     """A single numpy 2D array as input.
 
     One axis represents time and the other some flattened representation in space.
@@ -142,8 +142,8 @@ class Irreg3DInput(InputInterface):
 
     def __init__(
         self,
-        data: np.ndarray,
-        xy: np.ndarray,
+        data: InputInterface,
+        xy: InputInterface,
         time_dim: int = 0,
     ):
         """Initialize a stack interface for a 2D numpy array.

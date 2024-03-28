@@ -10,17 +10,19 @@ from numpy.typing import ArrayLike
 __all__ = [
     "InputInterface",
     "OutputInterface",
+    "InputStackInterface",
+    "OutputStackInterface",
 ]
 
 
 @runtime_checkable
-class IOInterface(Protocol):
+class InputInterface(Protocol):
     """
     Common stack interface for input and output.
 
     Such objects must exportc Numpy-like `dtype`, `shape` and `ndim`
     attributes. They should also indicate which dimension represents
-    time and space axes.
+    time and space axes. Inherited from snaphu-py.
     """
 
     @property
@@ -35,6 +37,44 @@ class IOInterface(Protocol):
     def ndim(self) -> int:
         """int : Number of array dimension."""  # noqa: D403
 
+    def __getitem__(self, key: slice | tuple[slice, ...], /) -> ArrayLike:
+        """Read a block of data."""
+
+
+@runtime_checkable
+class OutputInterface(Protocol):
+    """
+    An array-like interface for writing output datasets.
+
+    `OutputInterface` must export NumPy-like `dtype`, `shape`, and `ndim`
+    attributes and must support NumPy-style slice-based indexing.
+    """
+
+    @property
+    def dtype(self) -> np.dtype:
+        """numpy.dtype : Data-type of the array's elements."""
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """tuple of int : Tuple of array dimensions."""  # noqa: D403
+
+    @property
+    def ndim(self) -> int:
+        """int : Number of array dimensions."""  # noqa: D403
+
+    def __setitem__(self, key: slice | tuple[slice, ...], value: np.ndarray, /) -> None:
+        """Write a block of data."""
+
+
+@runtime_checkable
+class StackInterface(Protocol):
+    """
+    Common stack interface for input and output.
+
+    They should indicate which dimension represents
+    time and space axes.
+    """
+
     @property
     def time_dim(self) -> int:
         """int: Returns the dimension of array corresponding to time."""
@@ -45,12 +85,12 @@ class IOInterface(Protocol):
 
 
 @runtime_checkable
-class InputInterface(IOInterface, Protocol):
+class InputStackInterface(InputInterface, StackInterface, Protocol):
     """
     An array-like interface for reading input datasets.
 
-    `InputStackDataset` defines the abstract interface that types must conform
-    to in order to be valid inputs to ``spurt.unwrap()` function.
+    `InputStackInterface` defines the abstract interface that types must
+    conform to in order to be valid inputs to ``spurt.unwrap()` function.
     """
 
     def get_time_slice(self, key: int) -> ArrayLike:
@@ -61,12 +101,12 @@ class InputInterface(IOInterface, Protocol):
 
 
 @runtime_checkable
-class OutputInterface(IOInterface, Protocol):
+class OutputStackInterface(OutputInterface, StackInterface, Protocol):
     """
     An array-like interface for writing output datasets.
 
-    `InputStackDataset` defines the abstract interface that types must conform
-    to in order to be valid inputs to ``spurt.unwrap()` function.
+    `OutputStackInterface` defines the abstract interface that types must
+    conform to in order to be valid inputs to ``spurt.unwrap()` function.
     """
 
     def set_time_slice(self, key: int, array: ArrayLike) -> None:
