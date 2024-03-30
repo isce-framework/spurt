@@ -21,6 +21,11 @@ def __getattr__(name: str) -> Any:
 
         return Raster
 
+    if name == "SLCStackReader":
+        from ._slc_stack import SLCStackReader
+
+        return SLCStackReader
+
     if name in __all__:
         return globals()[name]
 
@@ -34,4 +39,4 @@ def __dir__() -> list[str]:
     except ModuleNotFoundError:
         return __all__
     else:
-        return sorted([*__all__, "Raster"])
+        return sorted([*__all__, "Raster", "SLCStackReader"])

@@ -47,7 +47,8 @@ class OutputInterface(Protocol):
     An array-like interface for writing output datasets.
 
     `OutputInterface` must export NumPy-like `dtype`, `shape`, and `ndim`
-    attributes and must support NumPy-style slice-based indexing.
+    attributes and must support NumPy-style slice-based indexing. Inherited
+    from snaphu-py.
     """
 
     @property
@@ -76,6 +77,18 @@ class StackInterface(Protocol):
     """
 
     @property
+    def dtype(self) -> np.dtype:
+        """numpy.dtype : Data-type of the array's elements."""
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """tuple of int : Tuple of array dimensions."""  # noqa: D403
+
+    @property
+    def ndim(self) -> int:
+        """int : Number of array dimension."""  # noqa: D403
+
+    @property
     def time_dim(self) -> int:
         """int: Returns the dimension of array corresponding to time."""
 
@@ -85,7 +98,7 @@ class StackInterface(Protocol):
 
 
 @runtime_checkable
-class InputStackInterface(InputInterface, StackInterface, Protocol):
+class InputStackInterface(StackInterface, Protocol):
     """
     An array-like interface for reading input datasets.
 
@@ -101,7 +114,7 @@ class InputStackInterface(InputInterface, StackInterface, Protocol):
 
 
 @runtime_checkable
-class OutputStackInterface(OutputInterface, StackInterface, Protocol):
+class OutputStackInterface(StackInterface, Protocol):
     """
     An array-like interface for writing output datasets.
 

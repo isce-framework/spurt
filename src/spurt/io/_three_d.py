@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 
-from ._stack import InputInterface, InputStackInterface
+from ._interface import InputInterface, InputStackInterface
 
 __all__ = [
     "Reg3DInput",
@@ -100,7 +100,7 @@ class Reg3DInput(InputStackInterface):
 
         This is to mimic an irregular grid.
         """
-        return np.arange(self._data.size, dtype=int) % self._space_shape[1]
+        return np.arange(np.prod(self._data.shape), dtype=int) % self._space_shape[1]
 
     @property
     def ycoords(self) -> ArrayLike:
@@ -108,18 +108,18 @@ class Reg3DInput(InputStackInterface):
 
         This is to mimic an irregular grid.
         """
-        return np.arange(self._data.size, dtype=int) // self._space_shape[1]
+        return np.arange(np.prod(self._data.shape), dtype=int) // self._space_shape[1]
 
     def get_time_slice(self, key: int) -> ArrayLike:
         """Read a block of data in time.
 
         Only makes a copy if absolutely needed.
         """
-        ind = (
-            slice(None) if ii != self._time_dim else key
+        ind = tuple(
+            slice(None) if ii != self._time_dim else int(key)
             for ii in range(self._data.ndim)
         )
-        return self._data[ind].ravel()
+        return self._data[ind].ravel()  # type: ignore[arg-type, index]
 
     def get_spatial_slice(self, key: int) -> ArrayLike:
         """Read a block of data in space.
@@ -129,15 +129,14 @@ class Reg3DInput(InputStackInterface):
         ind = list(np.unravel_index(key, self._space_shape))
         ind.insert(self._time_dim, slice(None))
 
-        return self._data[tuple(ind)].ravel()
+        return self._data[tuple(ind)].ravel()  # type: ignore[arg-type, index]
 
 
 class Irreg3DInput(InputStackInterface):
     """A single numpy 2D array as input.
 
-    One axis represents time and the other some flattened representation in space.
-
-    `time_dim` is an optional input to indicate time axis.
+    One axis represents time and the other some flattened representation
+    in space. `time_dim` is an optional input to indicate time axis.
     """
 
     def __init__(
@@ -171,7 +170,7 @@ class Irreg3DInput(InputStackInterface):
 
         if xy.ndim != 2:
             clsname = type(self).__name__
-            errmsg = f"{clsname} accepts xy as a 2D array.Unsupported shape {xy.shape}"
+            errmsg = f"{clsname} accepts xy as a 2D array. Unsupported shape {xy.shape}"
             raise ValueError(errmsg)
 
         # Check if time_dim is within limits
@@ -218,18 +217,18 @@ class Irreg3DInput(InputStackInterface):
         return self._data.shape[self._time_dim]
 
     @property
-    def shape(self) -> tuple[int]:
+    def shape(self) -> tuple[int, ...]:
         return self._data.shape
 
     @property
     def xcoords(self) -> ArrayLike:
         """Return the x-coordinate of the points as an array."""
-        return self._xy[:, 0]
+        return self._xy[:, slice(0, 1)]
 
     @property
     def ycoords(self) -> ArrayLike:
         """Return the y-coordinate of the points as an array."""
-        return self._xy[:, 1]
+        return self._xy[:, slice(1, 2)]
 
     def get_time_slice(self, key: int) -> ArrayLike:
         """Read a block of data in time.
@@ -241,11 +240,11 @@ class Irreg3DInput(InputStackInterface):
         key: int
             Index on the time axis
         """
-        ind = (
+        ind = tuple(
             slice(None) if ii != self._time_dim else key
             for ii in range(self._data.ndim)
         )
-        return self._data[ind].ravel()
+        return self._data[ind].ravel()  # type: ignore[arg-type, index]
 
     def get_spatial_slice(self, key: int) -> ArrayLike:
         """Read a block of data in space.
@@ -257,8 +256,8 @@ class Irreg3DInput(InputStackInterface):
         key: int
             Index on the space axis
         """
-        ind = (
+        ind = tuple(
             slice(None) if ii != self.space_dim else key
             for ii in range(self._data.ndim)
         )
-        return self._data[tuple(ind)].ravel()
+        return self._data[tuple(ind)].ravel()  # type: ignore[arg-type, index]
