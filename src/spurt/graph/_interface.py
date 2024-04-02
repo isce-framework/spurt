@@ -20,6 +20,10 @@ class GraphInterface(Protocol):
     """
 
     @property
+    def npoints(self) -> int:
+        """Return number of points in graph."""
+
+    @property
     def points(self) -> np.ndarray:
         """Return vertices as (npts, ndim)."""
 

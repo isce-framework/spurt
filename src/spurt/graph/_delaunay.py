@@ -40,6 +40,11 @@ class DelaunayGraph(GraphInterface):
     def __init__(self, xy: np.ndarray, scaling: ArrayLike = (1, 1)):
         """Create Delaunay triangulation with given coordinates and scaling."""
         self._d = Delaunay(xy * scaling)
+        assert self._d.npoints == len(xy), "Number of points mismatch"
+
+    @property
+    def npoints(self) -> int:
+        return self._d.npoints
 
     @property
     def points(self) -> np.ndarray:
@@ -60,4 +65,4 @@ class DelaunayGraph(GraphInterface):
             arcs.add(order((s[0], s[1])))
             arcs.add(order((s[0], s[2])))
             arcs.add(order((s[1], s[2])))
-        return np.array(list(arcs))
+        return np.array(sorted(arcs))
