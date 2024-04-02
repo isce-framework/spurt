@@ -33,12 +33,16 @@ def has_testdata() -> bool:
 )
 class TestStack:
     def test_stack(self):
-        stack = spurt.io.SLCStackReader(get_testdata_dir())
+        stack = spurt.io.SLCStackReader.from_phase_linked_directory(
+            get_testdata_dir(),
+            temp_coh_threshold=0.65,
+        )
 
         assert len(stack.dates) == 21
-        assert len(stack.files["slc"]) == 20
+        assert len(stack.slc_files) == 21
 
         arr = stack.read_tile((slice(0, 1024), slice(0, 1024)))
         assert arr.dtype == np.complex64
         assert arr.shape[0] == 21
         assert sum(arr.get_time_slice(0) == 1.0) == arr.shape[1]
+        assert stack.temp_coh_threshold == 0.65

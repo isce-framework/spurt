@@ -1,6 +1,11 @@
 from typing import Any
 
-from ._interface import InputInterface, OutputInterface
+from ._interface import (
+    InputInterface,
+    InputStackInterface,
+    OutputInterface,
+    OutputStackInterface,
+)
 from ._three_d import Irreg3DInput, Reg3DInput
 
 __all__ = [

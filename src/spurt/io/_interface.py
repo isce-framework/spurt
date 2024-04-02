@@ -20,9 +20,8 @@ class InputInterface(Protocol):
     """
     Common stack interface for input and output.
 
-    Such objects must exportc Numpy-like `dtype`, `shape` and `ndim`
-    attributes. They should also indicate which dimension represents
-    time and space axes. Inherited from snaphu-py.
+    Such objects must export NumPy-like `dtype`, `shape` and `ndim`
+    attributes.
     """
 
     @property
@@ -47,8 +46,7 @@ class OutputInterface(Protocol):
     An array-like interface for writing output datasets.
 
     `OutputInterface` must export NumPy-like `dtype`, `shape`, and `ndim`
-    attributes and must support NumPy-style slice-based indexing. Inherited
-    from snaphu-py.
+    attributes and must support NumPy-style slice-based indexing.
     """
 
     @property
@@ -72,8 +70,13 @@ class StackInterface(Protocol):
     """
     Common stack interface for input and output.
 
-    They should indicate which dimension represents
-    time and space axes.
+    They should indicate which dimension represents time and space axes.
+    Time dimension could represent a single acquisition time or a pair of
+    times for interferograms. Spatial dimension could represent a single
+    point in space or an arc connecting two points in space. This interface
+    is meant to be generic and will be used as a base class of specific type
+    of stacks based on context in which they are used in the processing
+    pipeline.
     """
 
     @property
