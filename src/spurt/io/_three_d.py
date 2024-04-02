@@ -67,10 +67,12 @@ class Reg3DInput(InputStackInterface):
 
     @property
     def time_dim(self) -> int:
+        """We flatten spatial dimensions."""
         return int(self._time_dim > 0)
 
     @property
     def space_dim(self) -> int:
+        """We flatten spatial dimensions."""
         return int(self._time_dim == 0)
 
     @property
