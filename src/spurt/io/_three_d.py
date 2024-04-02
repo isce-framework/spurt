@@ -14,7 +14,7 @@ __all__ = [
 
 
 class Reg3DInput(InputStackInterface):
-    """A single numpy 3D array as input.
+    """A single 3D array as input.
 
     A 2D image will just be a 3D array with size of time axis set to 1. This is
     largely a helper class to assist in development. `time_dim` is an optional
@@ -30,14 +30,12 @@ class Reg3DInput(InputStackInterface):
 
         Representing 3D data in a cube - regularly spaced in spatial dimension.
 
-
         Parameters
         ----------
-        data: np.ndarray
-            Numpy 3D array as input
-
+        data: InputInterface
+            3D array as input
         time_dim: int, optional
-            Axis of the numpy array that represents the time dimension
+            Axis of the array that represents the time dimension
         """
         # Check number of dimensions of input array
         if data.ndim != 3:
@@ -135,7 +133,7 @@ class Reg3DInput(InputStackInterface):
 
 
 class Irreg3DInput(InputStackInterface):
-    """A single numpy 2D array as input.
+    """A single 2D array as input.
 
     One axis represents time and the other some flattened representation
     in space. `time_dim` is an optional input to indicate time axis.
@@ -153,14 +151,13 @@ class Irreg3DInput(InputStackInterface):
 
         Parameters
         ----------
-        data: np.ndarray
-            Numpy 2D array as input
-
-        xy: np.ndarray
-            Numpy npts x 2 array as input
-
+        data: InputInterface
+            2D array as input
+        xy: InputInterface
+            N x 2 array of indices or coordinates of each pixel in
+            space, where N is the number of spatial points.
         time_dim: int, optional
-            Axis of the numpy array that represents the time dimension
+            Axis of the array that represents the time dimension
         """
         # Check number of dimensions of input array
         if data.ndim != 2:
@@ -262,4 +259,4 @@ class Irreg3DInput(InputStackInterface):
             slice(None) if ii != self.space_dim else key
             for ii in range(self._data.ndim)
         )
-        return self._data[tuple(ind)].ravel()  # type: ignore[arg-type, index]
+        return self._data[ind].ravel()  # type: ignore[arg-type, index]

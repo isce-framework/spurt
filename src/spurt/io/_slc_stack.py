@@ -17,7 +17,7 @@ __all__ = [
 
 
 class SLCStackReader:
-    """Read a Phase Linked SLC stack from single files.
+    """Read a SLC stack from single files.
 
     This is a specific type of stack where time domain represents acquisition
     dates and spatial domain represents SAR acquisition pixels. This class
@@ -28,6 +28,25 @@ class SLCStackReader:
 
     An additional temporal coherence or a quality file should be provided for
     pixel selection in the spatial dimension.
+
+
+    Attributes
+    ----------
+    dates: list of str
+        List of acquisition dates in order
+
+    slc_files: dict
+        SLC file corresponding to acquisition date
+
+    temp_coh_file: str
+        Temporal coherence file, indicative of quality
+
+    temp_coh_threshold: float
+        Minimum value of temporal coherence to consider a pixel stable
+
+    raster_shape: tuple of int
+        Shape of rasters in the stack
+
     """
 
     def __init__(
@@ -63,7 +82,10 @@ class SLCStackReader:
         p = Path(folder)
 
         # First get temporal coherence
-        temp_coh_file = next(p.glob("temporal_coherence.tif")).absolute()
+        temp_coh_file = (p / "temporal_coherence.tif").absolute()
+        if not temp_coh_file.exists():
+            errmsg = f"Error scanning {folder}. temporal_coherence.tif not found."
+            raise ValueError(errmsg)
 
         # Then list individual SLCs
         slclist = sorted(p.glob("*.int.tif"))
@@ -78,8 +100,8 @@ class SLCStackReader:
         for slc in slclist:
             if not slc.name.startswith(first_date):
                 errmsg = (
-                    f"Error scanning {folder}. "
-                    f"{slc.name} does not conform to phase linking"
+                    f"Error scanning {folder}."
+                    f" {slc.name} does not conform to phase linking"
                     " naming convention."
                 )
                 raise ValueError(errmsg)
@@ -87,8 +109,8 @@ class SLCStackReader:
             acq_date = slc.name.split("_")[1][:8]
             if acq_date in slc_files:
                 errmsg = (
-                    f"Error scanning {folder}. "
-                    f"{acq_date} already in list of SLCs. "
+                    f"Error scanning {folder}."
+                    f" {acq_date} already in list of SLCs. "
                     f"{slc.name} appears to be a duplicate"
                 )
                 raise ValueError(errmsg)
@@ -117,7 +139,10 @@ class SLCStackReader:
         p = Path(folder)
 
         # First get temporal coherence - this will be called inv_amp_dispersion
-        temp_coh_file = next(p.glob("inv_amp_dispersion.tif")).absolute()
+        temp_coh_file = (p / "inv_amp_dispersion.tif").absolute()
+        if not temp_coh_file.exists():
+            errmsg = f"Error scanning {folder}. inv_amp_dispersion.tif not found."
+            raise ValueError(errmsg)
 
         # Then list individual SLCs
         slclist = sorted(p.glob("*.slc.tif"))
@@ -127,8 +152,8 @@ class SLCStackReader:
             acq_date = slc.name.split("_")[0][:8]
             if acq_date in slc_files:
                 errmsg = (
-                    f"Error scanning {folder}. "
-                    f"{acq_date} already in list of SLCs. "
+                    f"Error scanning {folder}."
+                    f" {acq_date} already in list of SLCs. "
                     f"{slc.name} appears to be a duplicate"
                 )
                 raise ValueError(errmsg)
@@ -138,11 +163,6 @@ class SLCStackReader:
         return SLCStackReader(
             slc_files, temp_coh_file, temp_coh_threshold=temp_coh_threshold
         )
-
-    def summary(self) -> dict:
-        """Summary of the stack."""
-        # To be determined
-        return {}
 
     def _read_file(
         self,
@@ -156,7 +176,7 @@ class SLCStackReader:
     def get_valid_count(self):
         """Return number of pixels over qthreshold."""
         return np.sum(
-            self._read_file(self.files["quality"], np.s_[:, :]) > self.qthreshold
+            self._read_file(self.temp_coh_file, np.s_[:, :]) > self.temp_coh_threshold
         )
 
     def read_tile(
@@ -168,10 +188,7 @@ class SLCStackReader:
         We could potentially add a time slice as well at a later date.
         """
         # First read the quality file to get dimensions
-        with Raster(self.temp_coh_file) as fin:
-            qlty = fin[space]
-
-        msk = qlty > self.temp_coh_threshold
+        msk = self._read_file(self.temp_coh_file, space) > self.temp_coh_threshold
         xy = np.column_stack(np.where(msk))
 
         # Assumed complex64 for now but can read one file and determine
@@ -186,7 +203,6 @@ class SLCStackReader:
             if slcname is None:
                 continue
 
-            with Raster(slcname) as fin:
-                arr[ind, :] = fin[space][msk]
+            arr[ind, :] = self._read_file(slcname, space)[msk]
 
         return Irreg3DInput(arr, xy)

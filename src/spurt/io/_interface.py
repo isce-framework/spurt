@@ -122,7 +122,7 @@ class OutputStackInterface(StackInterface, Protocol):
     An array-like interface for writing output datasets.
 
     `OutputStackInterface` defines the abstract interface that types must
-    conform to in order to be valid inputs to ``spurt.unwrap()` function.
+    conform to in order to be valid outputs of the ``spurt.unwrap()` function.
     """
 
     def set_time_slice(self, key: int, array: ArrayLike) -> None:
