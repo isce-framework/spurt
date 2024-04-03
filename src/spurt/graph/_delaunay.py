@@ -9,6 +9,7 @@ from ._interface import PlanarGraphInterface
 __all__ = [
     "order_points",
     "DelaunayGraph",
+    "Reg2DGraph",
 ]
 
 
@@ -56,7 +57,7 @@ class DelaunayGraph(PlanarGraphInterface):
         return self._d.points
 
     @property
-    def simplices(self) -> np.ndarray:
+    def cycles(self) -> np.ndarray:
         return self._d.simplices
 
     @property
@@ -66,8 +67,115 @@ class DelaunayGraph(PlanarGraphInterface):
     @property
     def links(self) -> np.ndarray:
         arcs: set[tuple[int, int]] = set()
-        for s in self.simplices:
+        for s in self.cycles:
             arcs.add(order_points((s[0], s[1])))
             arcs.add(order_points((s[0], s[2])))
             arcs.add(order_points((s[1], s[2])))
         return np.array(sorted(arcs))
+
+
+class Reg2DGraph(PlanarGraphInterface):
+    """Class to hold 2D regular grid.
+
+    This is a utility class to test MCF implementation against other
+    regular 2D grid solvers. We will walk down the rows of the 2D grid
+    to determine the order of points, links and cycles.
+    """
+
+    def __init__(self, shape: tuple[int, int]):
+        """Create regular 2D graph of given shape."""
+        self._shape = shape
+
+    @property
+    def npoints(self) -> int:
+        return self._shape[0] * self._shape[1]
+
+    @property
+    def points(self) -> np.ndarray:
+        """Return points in 2D grid.
+
+        Points are returned in row order.
+        """
+        # We will just use indices here for position
+        pts = np.zeros((self.npoints, 2), dtype=int)
+        for ii in range(self._shape[0]):
+            i0 = ii * self._shape[1]
+            i1 = i0 + self._shape[1]
+
+            pts[i0:i1, 0] = np.arange(self._shape[1])
+            pts[i0:i1, 1] = ii
+
+        return pts
+
+    @property
+    def cycles(self) -> np.ndarray:
+        """Return rectangular loops in 2D grid."""
+        ncyc = self.npoints - self._shape[0] - self._shape[1] + 1
+        cyc = np.zeros((ncyc, 4), dtype=int)
+
+        ind = 0
+        # Iterate over the loops for top-left corner of loop
+        for ii in range(self._shape[0] - 1):
+            for jj in range(self._shape[1] - 1):
+                # cycles will go counter-clockwise like Delaunay
+                # top-left -> bottom-left -> bottom-right -> top-right
+                cyc[ind, :] = np.ravel_multi_index(
+                    ((ii, ii + 1, ii + 1, ii), (jj, jj, jj + 1, jj + 1)), self._shape
+                )
+                ind += 1
+
+        return cyc
+
+    @property
+    def boundary(self) -> np.ndarray:
+        """Return boundary edges in 2D grid."""
+        narcs = 2 * (self._shape[0] + self._shape[1] - 2)
+        arcs = np.zeros((narcs, 2), dtype=int)
+
+        ind = 0
+        # Walk along the top edge
+        for ii in range(self._shape[1] - 1):
+            arcs[ind, :] = (ii, ii + 1)
+            ind += 1
+
+        # Walk down the right edge
+        for ii in range(self._shape[0] - 1):
+            off = ii * self._shape[1] + self._shape[1] - 1
+            arcs[ind, :] = (off, off + self._shape[1])
+            ind += 1
+
+        # Walk back along bottom edge
+        for ii in range(self._shape[1] - 1, 0, -1):
+            off = (self._shape[0] - 1) * self._shape[1]
+            arcs[ind, :] = (off + ii - 1, off + ii)
+            ind += 1
+
+        # Walk back along left edge
+        for ii in range(self._shape[0] - 1, 0, -1):
+            off = ii * self._shape[1]
+            arcs[ind, :] = (off - self._shape[1], off)
+
+        return arcs
+
+    @property
+    def links(self) -> np.ndarray:
+        """Horizontal links followed by vertical links."""
+        narcs = 2 * self.npoints - self._shape[0] - self._shape[1]
+        arcs = np.zeros((narcs, 2), dtype=int)
+
+        ind = 0
+        # Start with horizontal links, iterate over the rows
+        for ii in range(self._shape[0]):
+            start = ii * self._shape[1] + np.arange(self._shape[1] - 1)
+            arcs[ind : ind + start.size, 0] = start
+            arcs[ind : ind + start.size, 1] = start + 1
+            ind += start.size
+
+        # Now include the vertical links, but walk along rows
+        for ii in range(self._shape[0] - 1):
+            start = ii * self._shape[1] + np.arange(self._shape[1])
+            arcs[ind : ind + start.size, 0] = start
+            arcs[ind : ind + start.size, 1] = start + self._shape[1]
+            ind += start.size
+
+        return arcs

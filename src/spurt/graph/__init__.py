@@ -1,4 +1,4 @@
-from ._delaunay import DelaunayGraph, order_points
+from ._delaunay import DelaunayGraph, Reg2DGraph, order_points
 from ._interface import GraphInterface, PlanarGraphInterface
 
 __all__ = [
@@ -6,4 +6,5 @@ __all__ = [
     "GraphInterface",
     "PlanarGraphInterface",
     "DelaunayGraph",
+    "Reg2DGraph",
 ]
