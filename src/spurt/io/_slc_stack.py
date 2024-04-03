@@ -29,24 +29,18 @@ class SLCStackReader:
     An additional temporal coherence or a quality file should be provided for
     pixel selection in the spatial dimension.
 
-
     Attributes
     ----------
     dates: list of str
         List of acquisition dates in order
-
     slc_files: dict
         SLC file corresponding to acquisition date
-
     temp_coh_file: str
         Temporal coherence file, indicative of quality
-
     temp_coh_threshold: float
         Minimum value of temporal coherence to consider a pixel stable
-
     raster_shape: tuple of int
         Shape of rasters in the stack
-
     """
 
     def __init__(
