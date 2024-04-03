@@ -4,16 +4,16 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.spatial import Delaunay
 
-from ._interface import GraphInterface
+from ._interface import PlanarGraphInterface
 
 __all__ = [
-    "order",
+    "order_points",
     "DelaunayGraph",
 ]
 
 
-def order(p: tuple[int, int]) -> tuple[int, int]:
-    """Order vertices by index.
+def order_points(p: tuple[int, int]) -> tuple[int, int]:
+    """Order points/ nodes vertices by index.
 
     Given a pair of numbers, return a 2-tuple so the first is lower. The use
     case is that the pair contains pairs of indices representing undirected
@@ -34,8 +34,13 @@ def order(p: tuple[int, int]) -> tuple[int, int]:
     return (p[1], p[0])
 
 
-class DelaunayGraph(GraphInterface):
-    """Class to hold delaunay triangulation."""
+class DelaunayGraph(PlanarGraphInterface):
+    """Class to hold Delaunay triangulation.
+
+    This will be the default class in use in this package.
+    This will also be the only class that will interact with
+    Minimum Cost Flow (MCF) solvers for irregular grids.
+    """
 
     def __init__(self, xy: np.ndarray, scaling: ArrayLike = (1, 1)):
         """Create Delaunay triangulation with given coordinates and scaling."""
@@ -62,7 +67,7 @@ class DelaunayGraph(GraphInterface):
     def links(self) -> np.ndarray:
         arcs: set[tuple[int, int]] = set()
         for s in self.simplices:
-            arcs.add(order((s[0], s[1])))
-            arcs.add(order((s[0], s[2])))
-            arcs.add(order((s[1], s[2])))
+            arcs.add(order_points((s[0], s[1])))
+            arcs.add(order_points((s[0], s[2])))
+            arcs.add(order_points((s[1], s[2])))
         return np.array(sorted(arcs))
