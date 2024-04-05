@@ -50,36 +50,58 @@ def test_unwrap_one():
 
     graph, point_data = gen_data_real()
 
-    # Hack for now to reference to first pixel
-    point_data = point_data - point_data[0]
-
     edges = graph.links
     solver = spurt.mcf.ORMCFSolver(graph)
-    uwdata, _ = solver.unwrap_one(point_data, np.ones(edges.shape[0], dtype=int))
+
+    # Based on current internal unit test
+    # Setting up cost function based on centroid distance
+    cost = spurt.mcf.utils.centroid_costs(
+        graph.points, solver.cycles, solver.dual_edges
+    )
+    uwdata, _ = solver.unwrap_one(point_data, cost)
 
     grads = point_data[edges[:, 1]] - point_data[edges[:, 0]]
     ugrads = uwdata[edges[:, 1]] - uwdata[edges[:, 0]]
     diff = ugrads - grads
 
-    print(diff.min(), diff.max())
-    assert np.max(np.abs(diff)) < 1
+    assert np.max(np.abs(diff)) > 1
 
     assert np.ptp(wrap(diff)) < 1.0e-3
 
 
 def test_snaphu_data():
-    """Borrow this unit test from snaphu."""
+    """Borrow this unit test data from snaphu."""
 
     # Simulate interferogram containing a diagonal phase ramp with multiple fringes.
     y, x = np.ogrid[-3:3:512j, -3:3:512j]
     phase = np.pi * (x + y)
 
-    # Hack for now to reference to first pixel
-    phase = phase - phase[0, 0]
-
     igram = np.exp(1j * phase)
 
     graph = spurt.graph.Reg2DGraph(igram.shape)
+    solver = spurt.mcf.ORMCFSolver(graph)
+    # Use unit cost - since we dont have smooth / defo
+    cost = np.ones(solver.edges.shape[0], dtype=int)
+    unw, _ = solver.unwrap_one(igram.flatten(), cost)
+    unw = unw.reshape(igram.shape)
+
+    # The unwrapped phase may differ from the true phase by a fixed integer
+    # multiple of 2pi.
+    mean_diff = np.mean(unw - phase)
+    offset = 2.0 * np.pi * np.round(mean_diff / (2.0 * np.pi))
+    np.testing.assert_allclose(unw, phase + offset, atol=1e-3)
+
+
+def test_snaphu_sparse():
+    """Borrow this unit test data from snaphu."""
+
+    # Simulate interferogram containing a diagonal phase ramp with multiple fringes.
+    y, x = np.ogrid[-3:3:512j, -3:3:512j]
+    phase = np.pi * (x + y)
+
+    igram = np.exp(1j * phase)
+
+    graph = spurt.graph.DelaunayGraph(spurt.graph.Reg2DGraph(igram.shape).points)
     solver = spurt.mcf.ORMCFSolver(graph)
     # Use unit cost - since we dont have smooth / defo
     cost = np.ones(solver.edges.shape[0], dtype=int)

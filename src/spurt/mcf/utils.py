@@ -96,4 +96,37 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         errmsg = f"Error: Encountered {len(multi_paths)} closure errors"
         raise ValueError(errmsg)
 
+    # Adding the source node value
+    if np.iscomplexobj(indata):
+        unwrapped += np.angle(indata[links[0, 0]])
+    else:
+        unwrapped += indata[links[0, 0]]
+
     return unwrapped
+
+
+def centroid_costs(
+    points: np.ndarray,
+    cycles: np.ndarray | list[list[int]],
+    dual_edges: np.ndarray,
+    scale: float = 100.0,
+) -> np.ndarray:
+    """Estimate edge costs based on centroid distance.
+
+    Should probably relocate to a common area where cost functions are
+    maintained at a later date.
+    """
+    cost = np.zeros(dual_edges.shape[0], dtype=int)
+    centroids = np.zeros((len(cycles), 2))
+    for ii, cycle in enumerate(cycles):
+        centroids[ii] = np.mean(points[cycle], axis=0)
+
+    for ii, edge in enumerate(dual_edges):
+        # If connected to grounding node
+        if edge[1] == 0:
+            continue
+
+        d = np.linalg.norm(centroids[abs(edge[0]) - 1] - centroids[abs(edge[1]) - 1])
+        cost[ii] = np.rint(1 + scale / d)
+
+    return cost
