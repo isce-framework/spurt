@@ -54,7 +54,7 @@ class ORMCFSolver(MCFSolverInterface):
                 # Sign indicates if the edge order in forward / reverse
                 # direction. We augment icyc by 1 to use the sign infomation.
                 edge_to_cycles[edge].append(
-                    (icyc + 1) * sign_nonzero(cycle[jj] - cycle[ii])
+                    (icyc + 1) * sign_nonzero(cycle[ii] - cycle[jj])
                 )
 
         # Now build list of dual_edges
@@ -138,10 +138,8 @@ def solve_mcf(edges: np.ndarray, residues: np.ndarray, cost: np.ndarray) -> np.n
     flows = np.zeros(num_edges, dtype=int)
     for ii in range(num_edges):
         # Sign accounts for orientation of edge in cycles
-        flows[ii] = (
-            -1
-            * sign_nonzero(edges[ii, 0])
-            * (smcf.flow(ii) - smcf.flow(ii + num_edges))
+        flows[ii] = sign_nonzero(edges[ii, 0]) * (
+            smcf.flow(ii) - smcf.flow(ii + num_edges)
         )
 
     return flows
