@@ -24,7 +24,7 @@ class ORMCFSolver(MCFSolverInterface):
         # We borrow the arrays and avoid copying
         self.npoints = graph.npoints
         self.edges = graph.links
-        self.cycles = np.ndarray(graph.cycles)
+        self.cycles = np.array(graph.cycles)  # To make mypy happy for now
 
         # These are needed for MCF
         # Edges represent arcs between cycles
@@ -89,12 +89,12 @@ class ORMCFSolver(MCFSolverInterface):
         ndim = self.cycles.shape[1]
         for col in range(ndim):
             nn = (col + 1) % ndim
-            residues[1:, :] += phase_diff(
+            residues[1:] += phase_diff(
                 indata[self.cycles[:, col]], indata[self.cycles[:, nn]]
             )
         residues = np.rint(residues / (2 * np.pi))
         # Set supply of ground_node
-        residues[0] = np.sum(residues[1:])
+        residues[0] = -np.sum(residues[1:])
 
         # Instantiate the MCF solver and supply the data
         flows = solve_mcf(self.dual_edges, residues, cost)
@@ -129,7 +129,7 @@ def solve_mcf(edges: np.ndarray, residues: np.ndarray, cost: np.ndarray) -> np.n
     smcf.add_arcs_with_capacity_and_unit_cost(end_nodes, start_nodes, capacities, cost)
 
     # Add the supplies
-    smcf.set_nodes_supplies(np.arange(len(residues) + 1, dtype=np.int32), residues)
+    smcf.set_nodes_supplies(np.arange(len(residues), dtype=np.int32), residues)
 
     if smcf.solve() != smcf.OPTIMAL:
         errmsg = "MCF solver returned a sub-optimal solution."
@@ -138,8 +138,10 @@ def solve_mcf(edges: np.ndarray, residues: np.ndarray, cost: np.ndarray) -> np.n
     flows = np.zeros(num_edges, dtype=int)
     for ii in range(num_edges):
         # Sign accounts for orientation of edge in cycles
-        flows[ii] = sign_nonzero(edges[ii, 0]) * (
-            smcf.flow(ii) - smcf.flow(ii + num_edges)
+        flows[ii] = (
+            -1
+            * sign_nonzero(edges[ii, 0])
+            * (smcf.flow(ii) - smcf.flow(ii + num_edges))
         )
 
     return flows

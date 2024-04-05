@@ -14,7 +14,7 @@ def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
     z1 : np.ndarray
         Same type as z0
     """
-    if np.iscomplex(z0):
+    if np.iscomplexobj(z0):
         p0 = np.angle(z0)
         p1 = np.angle(z1)
         d = p1 - p0
