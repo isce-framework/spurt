@@ -28,3 +28,6 @@ class MCFSolverInterface(Protocol):
         self, indata: ArrayLike, cost: ArrayLike
     ) -> tuple[ArrayLike, ArrayLike]:
         """Solver should return unwrapped phase and flows on the edges."""
+
+    def residues_to_flows(self, residues: ArrayLike, cost: ArrayLike) -> ArrayLike:
+        """Solver should return flows corresponding to given residues."""

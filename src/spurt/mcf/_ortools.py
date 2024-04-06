@@ -97,12 +97,19 @@ class ORMCFSolver(MCFSolverInterface):
         residues[0] = -np.sum(residues[1:])
 
         # Instantiate the MCF solver and supply the data
-        flows = solve_mcf(self.dual_edges, residues, cost)
+        flows = self.residues_to_flows(residues, cost)
 
         # Flood fill with the flows
         unw = flood_fill(indata, self.edges, flows)
 
         return unw, flows
+
+    def residues_to_flows(self, residues: np.ndarray, cost: np.ndarray) -> np.ndarray:
+        """Return flows corresponding to given set of residues.
+
+        This is exposed to allow for unwrapping with gradients.
+        """
+        return solve_mcf(self.dual_edges, residues, cost)
 
 
 def solve_mcf(edges: np.ndarray, residues: np.ndarray, cost: np.ndarray) -> np.ndarray:
