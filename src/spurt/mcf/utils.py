@@ -130,3 +130,21 @@ def centroid_costs(
         cost[ii] = np.rint(1 + scale / d)
 
     return cost
+
+
+def distance_costs(
+    points: np.ndarray,
+    edges: np.ndarray,
+    scale: float = 100.0,
+) -> np.ndarray:
+    """Estimate edge costs based on distance between points.
+
+    Should probably relocate to a common area where cost functions are
+    maintained at a later date.
+    """
+    cost = np.zeros(edges.shape[0], dtype=int)
+    for ii, edge in enumerate(edges):
+        d = np.linalg.norm(points[edge[0]] - points[edge[1]])
+        cost[ii] = np.rint(1 + scale / d)
+
+    return cost
