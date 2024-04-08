@@ -48,7 +48,7 @@ class DelaunayGraph(PlanarGraphInterface):
         self._d = Delaunay(xy * scaling)
         assert self._d.npoints == len(xy), "Number of points mismatch"
         self._links: np.ndarray | None = None
-        self.create_links()
+        self._create_links()
 
     @property
     def npoints(self) -> int:
@@ -66,7 +66,7 @@ class DelaunayGraph(PlanarGraphInterface):
     def boundary(self) -> np.ndarray:
         return self._d.convex_hull
 
-    def create_links(self) -> None:
+    def _create_links(self) -> None:
         arcs: set[tuple[int, int]] = set()
         for s in self.cycles:
             arcs.add(order_points((s[0], s[1])))
@@ -91,7 +91,7 @@ class Reg2DGraph(PlanarGraphInterface):
         """Create regular 2D graph of given shape."""
         self._shape = shape
         self._links: np.ndarray | None = None
-        self.create_links()
+        self._create_links()
 
     @property
     def npoints(self) -> int:
@@ -159,7 +159,7 @@ class Reg2DGraph(PlanarGraphInterface):
         assert ind == narcs
         return arcs
 
-    def create_links(self) -> None:
+    def _create_links(self) -> None:
         """Horizontal links followed by vertical links."""
         narcs = 2 * self.npoints - self._shape[0] - self._shape[1]
         arcs = np.zeros((narcs, 2), dtype=int)
