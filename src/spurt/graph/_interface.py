@@ -60,4 +60,8 @@ class PlanarGraphInterface(GraphInterface, Protocol):
 
     @property
     def boundary(self) -> np.ndarray | list[list[int]]:
-        """Return list of arcs forming outer boundary of graph."""
+        """Return arcs in form of pair of vertices forming outer boundary of graph.
+
+        This is only a utility and is not necessarily used in the MCF code.
+        There is no concept of boundary for non-planar graphs.
+        """

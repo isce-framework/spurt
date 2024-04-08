@@ -14,7 +14,7 @@ __all__ = [
 
 
 def order_points(p: tuple[int, int]) -> tuple[int, int]:
-    """Order points/ nodes vertices by index.
+    """Order points/nodes/vertices by index.
 
     Given a pair of numbers, return a 2-tuple so the first is lower. The use
     case is that the pair contains pairs of indices representing undirected
@@ -47,6 +47,8 @@ class DelaunayGraph(PlanarGraphInterface):
         """Create Delaunay triangulation with given coordinates and scaling."""
         self._d = Delaunay(xy * scaling)
         assert self._d.npoints == len(xy), "Number of points mismatch"
+        self._links: np.ndarray | None = None
+        self.create_links()
 
     @property
     def npoints(self) -> int:
@@ -64,14 +66,17 @@ class DelaunayGraph(PlanarGraphInterface):
     def boundary(self) -> np.ndarray:
         return self._d.convex_hull
 
-    @property
-    def links(self) -> np.ndarray:
+    def create_links(self) -> None:
         arcs: set[tuple[int, int]] = set()
         for s in self.cycles:
             arcs.add(order_points((s[0], s[1])))
             arcs.add(order_points((s[0], s[2])))
             arcs.add(order_points((s[1], s[2])))
-        return np.array(sorted(arcs))
+        self._links = np.array(sorted(arcs))
+
+    @property
+    def links(self) -> np.ndarray:
+        return self._links
 
 
 class Reg2DGraph(PlanarGraphInterface):
@@ -85,6 +90,8 @@ class Reg2DGraph(PlanarGraphInterface):
     def __init__(self, shape: tuple[int, int]):
         """Create regular 2D graph of given shape."""
         self._shape = shape
+        self._links: np.ndarray | None = None
+        self.create_links()
 
     @property
     def npoints(self) -> int:
@@ -94,18 +101,11 @@ class Reg2DGraph(PlanarGraphInterface):
     def points(self) -> np.ndarray:
         """Return points in 2D grid.
 
-        Points are returned in row order.
+        Points are returned in row-major order.
         """
         # We will just use indices here for position
-        pts = np.zeros((self.npoints, 2), dtype=int)
-        for ii in range(self._shape[0]):
-            i0 = ii * self._shape[1]
-            i1 = i0 + self._shape[1]
-
-            pts[i0:i1, 0] = np.arange(self._shape[1])
-            pts[i0:i1, 1] = ii
-
-        return pts
+        i, j = np.indices(self._shape).reshape(2, -1)
+        return np.column_stack((j, i))
 
     @property
     def cycles(self) -> np.ndarray:
@@ -154,11 +154,12 @@ class Reg2DGraph(PlanarGraphInterface):
         for ii in range(self._shape[0] - 1, 0, -1):
             off = ii * self._shape[1]
             arcs[ind, :] = (off - self._shape[1], off)
+            ind += 1
 
+        assert ind == narcs
         return arcs
 
-    @property
-    def links(self) -> np.ndarray:
+    def create_links(self) -> None:
         """Horizontal links followed by vertical links."""
         narcs = 2 * self.npoints - self._shape[0] - self._shape[1]
         arcs = np.zeros((narcs, 2), dtype=int)
@@ -178,4 +179,8 @@ class Reg2DGraph(PlanarGraphInterface):
             arcs[ind : ind + start.size, 1] = start + self._shape[1]
             ind += start.size
 
-        return arcs
+        self._links = arcs
+
+    @property
+    def links(self) -> np.ndarray:
+        return self._links
