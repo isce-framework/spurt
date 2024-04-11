@@ -81,3 +81,19 @@ class MCFSolverInterface(Protocol):
         flows: ArrayLike
             1D array of integer flows along each of the edges in the graph.
         """
+
+    def compute_residues(self, wrapdata: ArrayLike) -> ArrayLike:
+        """Solver should return residues corresponding to input wrapped data.
+
+        Parameters
+        ----------
+        wrapdata: ArrayLike
+            1D array as input in radians or complex numbers. Same size as
+            number of points in the graph.
+
+        Returns
+        -------
+        residues: ArrayLike
+            1D array of integer residues corresponding to the cycles in the
+            graph. Includes the grounding node.
+        """

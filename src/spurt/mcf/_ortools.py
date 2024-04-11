@@ -90,22 +90,17 @@ class ORMCFSolver(MCFSolverInterface):
     def dual_edges(self) -> np.ndarray:
         return self._dual_edges
 
-    def unwrap_one(
+    def compute_residues(
         self,
         wrapdata: ArrayLike,
-        cost: ArrayLike,
-        revcost: ArrayLike | None = None,
-    ) -> tuple[ArrayLike, ArrayLike]:
-        """Get the unwrapped phase solution for one set of input wrapped data."""
+    ) -> ArrayLike:
+        """Compute phase residues for one set of input wrapped data."""
         if wrapdata.size != self.npoints:
             errmsg = (
                 f"Size mismatch for unwrapping."
                 f" Received {wrapdata.shape} with {self.npoints} points"
             )
             raise ValueError(errmsg)
-
-        if revcost is None:
-            revcost = cost
 
         # Residues includes the grounding node at index 0
         residues = np.zeros(len(self.cycles) + 1)
@@ -118,6 +113,20 @@ class ORMCFSolver(MCFSolverInterface):
         residues = np.rint(residues / (2 * np.pi))
         # Set supply of ground_node
         residues[0] = -np.sum(residues[1:])
+        return residues
+
+    def unwrap_one(
+        self,
+        wrapdata: ArrayLike,
+        cost: ArrayLike,
+        revcost: ArrayLike | None = None,
+    ) -> tuple[ArrayLike, ArrayLike]:
+        """Get the unwrapped phase solution for one set of input wrapped data."""
+        if revcost is None:
+            revcost = cost
+
+        # Compute residues
+        residues = self.compute_residues(wrapdata)
 
         # Instantiate the MCF solver and supply the data
         flows = self.residues_to_flows(residues, cost, revcost=revcost)
