@@ -69,6 +69,10 @@ class PlanarGraphInterface(GraphInterface, Protocol):
     """
 
     @property
+    def cycles(self) -> np.ndarray:
+        """Return cycles as ndarray as cycles are of same length."""
+
+    @property
     def boundary(self) -> np.ndarray | list[list[int]]:
         """Return arcs in form of pair of vertices forming outer boundary of graph.
 
