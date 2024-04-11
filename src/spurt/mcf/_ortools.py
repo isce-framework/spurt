@@ -102,9 +102,6 @@ class ORMCFSolver(MCFSolverInterface):
             )
             raise ValueError(errmsg)
 
-        if revcost is None:
-            revcost = cost
-
         # Residues includes the grounding node at index 0
         residues = np.zeros(len(self.cycles) + 1)
         ndim = len(self.cycles[0])
