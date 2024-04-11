@@ -5,7 +5,7 @@ import numpy as np
 
 def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
     """
-    Compute the wrapped phase difference for two complex numbers.
+    Compute the wrapped phase difference for between two numbers in radians.
 
     Parameters
     ----------

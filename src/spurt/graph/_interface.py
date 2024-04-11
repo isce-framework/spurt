@@ -55,16 +55,17 @@ class PlanarGraphInterface(GraphInterface, Protocol):
     Interface to a 2D planar graph.
 
     This provides an additional access to the boundary (convex_hull) of the
-    graph. The following assumptions are made regarding our interface to planar
-    graphs for ease of use with MCF solvers:
+    graph. This class is specifically meant for use with MCF solvers and will
+    provide a common interface for Regular 2D grids and Delaunay
+    triangulations. The following assumptions are made regarding our interface
+    for ease of use with MCF solvers:
         - The graph is connected.
         - Every edge is a part of one or two cycles utmost.
         - The links are always oriented from lower index into the points array
         to the higher index.
         - The cycles are all oriented in a single direction - either clockwise
         or anti-clockwise.
-        - Only the points on the boundary have degree two. All other
-        points have degree greater than two.
+        - All the cycles returned by the interface are of the same length.
     """
 
     @property
