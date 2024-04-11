@@ -39,68 +39,104 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     Given input data amd links for those links start at an arbitrary point
     and walk along links adding the gradient. When we encounter a cycle,
     make sure that walking either path around the cycle will result in
-    the same answer. Return the point values.
+    the same answer. Return the point values. This version has a lot of
+    debugging friendly features.
 
     Parameters
     ----------
     indata: np.ndarray
-        Input wrapped or approximately unwrapped phase data.
+        Input wrapped phase data as 1D array. Same size as number of points in graph.
     links : np.ndarray
-        Links specifed as tuples of point indices.
+        Links specifed as tuples of point indices. The links should represented
+        a fully connected graph.
     flows : np.ndarray
         Integer cycles to be added to each link.
 
     Returns
     -------
-    unwrapped : array
-        Per point unwrapped data.
+    unwrapped : np.ndarray
+        Unwrapped phase in radians. Same size as indata.
     """
     if len(links) != len(flows):
         errmsg = f"Dimension mismatch - {links.shape} vs {flows.shape}"
         raise ValueError(errmsg)
 
+    # Indices of points
     pts = np.arange(len(indata))
 
+    # Mapping of points to its immediate neighbors and gradient on the link
     pts_to_nbrs: dict = {pt: [] for pt in pts}
+
+    # Iterate over the links
     for ii, link in enumerate(links):
+        # Get the unwrapped phase gradient by adding flows to
         gradient = phase_diff(indata[link[0]], indata[link[1]]) + 2 * np.pi * flows[ii]
+
+        # Add the link in either direction with appropriate gradient sign
         pts_to_nbrs[link[0]].append((link[1], gradient))
         pts_to_nbrs[link[1]].append((link[0], -gradient))
 
-    done = np.zeros(len(pts))
+    # To track if a pixel has been unwrapped already
+    done = np.zeros(len(pts), dtype=bool)
+
+    # Track indices of point yet to be unwrapped
     to_do = []
+
+    # To store unwrapped value that will be returned
     unwrapped = np.zeros(len(pts))
+
+    # To track the integration path to each point
     pts_to_paths: dict = {pt: [] for pt in pts}
 
+    # Start with point with index 0 - this is the reference
     to_do.append(0)
-    done[0] = 1
+    done[0] = True
     pts_to_paths[0].append(0)
 
+    # This is for reporting in case things go wrong
+    # This should never happen but having this on helps
+    # with fast debugging of sign errors
     multi_paths = []
 
-    while np.any(done == 0):
+    # Continue till all points are unwrapped
+    while not np.all(done):
+
+        # Get the first pixel from the to do list
         i = to_do.pop(0)
+
+        # For each of its neighbors and associated gradient
         for j, g in pts_to_nbrs[i]:
+
+            # Unwrap by adding the gradient
             u = unwrapped[i] + g
-            if done[j] == 0:
+
+            # If not unwrapped, now label as unwrapped
+            if not done[j]:
                 unwrapped[j] = u
-                done[j] = 1
+                done[j] = True
+                # Track the path to the point
                 pts_to_paths[j] = pts_to_paths[i] + [j]
+                # Add new point to to do list
                 to_do.append(j)
+
+            # If already unwrapped, verify values are numerically compatible
             elif np.abs(u - unwrapped[j]) > 1e-3:
+                # If you get here, unwrapping path dependent - track for
+                # debugging
                 multi_paths.append(
                     (pts_to_paths[j], pts_to_paths[i] + [j], u - unwrapped[j])
                 )
 
+    # Report issues if any - this is bad sign if we get here
     if len(multi_paths) > 0:
         errmsg = f"Error: Encountered {len(multi_paths)} closure errors"
         raise ValueError(errmsg)
 
-    # Adding the source node value
+    # Adding the source node value - we started at index 0
     if np.iscomplexobj(indata):
-        unwrapped += np.angle(indata[links[0, 0]])
+        unwrapped += np.angle(indata[0])
     else:
-        unwrapped += indata[links[0, 0]]
+        unwrapped += indata[0]
 
     return unwrapped
 

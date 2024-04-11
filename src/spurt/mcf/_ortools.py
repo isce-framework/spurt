@@ -29,7 +29,7 @@ class ORMCFSolver(MCFSolverInterface):
         # We borrow the arrays and avoid copying
         self.npoints = graph.npoints
         self.edges = graph.links
-        self.cycles = np.ndarray(graph.cycles)
+        self.cycles = np.array(graph.cycles)
 
         # These are needed for MCF
         # Edges represent arcs between cycles
