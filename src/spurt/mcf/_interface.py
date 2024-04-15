@@ -37,11 +37,11 @@ class MCFSolverInterface(Protocol):
             1D array as input in radians or as complex numbers. Same size as
             number of points in the graph.
         cost: ArrayLike
-            1D array of positive integer costs. Same size as number of edges in
+            1D array of nonnegative integer costs. Same size as number of edges in
             the graph. Represents forward directional cost when used in
             combination with revcost.
         revcost: ArrayLike | None
-            1D array of positive integer costs on links in reverse direction.
+            1D array of nonnegative integer costs on links in reverse direction.
             Same size as number of edges in the graph. cost is used if not
             provided.
 
@@ -65,12 +65,10 @@ class MCFSolverInterface(Protocol):
             1D array of integer residues. Same size as number of cycles in
             graph plus one to accommodate the grounding node. Array must sum to
             zero.
-
         cost: ArrayLike
             1D array of positive integer costs. Same size as number of edges
             in the graph. Represents forward directional cost when used in
             combination with revcost.
-
         revcost: ArrayLike | None
             1D array of positive integer costs on links in reverse direction.
             Same size as number of edges in the graph. cost is used if not

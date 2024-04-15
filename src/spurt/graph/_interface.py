@@ -70,7 +70,11 @@ class PlanarGraphInterface(GraphInterface, Protocol):
 
     @property
     def cycles(self) -> np.ndarray:
-        """Return cycles as ndarray as cycles are of same length."""
+        """Return cycles as ndarray as cycles are of same length.
+
+        Since all cycles are assumed to be of equal length here, we can use an
+        ndarray to be efficient.
+        """
 
     @property
     def boundary(self) -> np.ndarray | list[list[int]]:

@@ -36,11 +36,12 @@ def sign_nonzero(x: float) -> int:
 def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     """Flood fill unwrapping.
 
-    Given input data amd links for those links start at an arbitrary point
+    Given input data and links for those links start at an arbitrary point
     and walk along links adding the gradient. When we encounter a cycle,
     make sure that walking either path around the cycle will result in
     the same answer. Return the point values. This version has a lot of
-    debugging friendly features.
+    debugging friendly features. This method assumes that the graph is
+    connected.
 
     Parameters
     ----------
@@ -99,7 +100,7 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     multi_paths = []
 
     # Continue till all points are unwrapped
-    while not np.all(done):
+    while to_do:
 
         # Get the first pixel from the to do list
         i = to_do.pop(0)
@@ -132,6 +133,13 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         errmsg = f"Error: Encountered {len(multi_paths)} closure errors"
         raise ValueError(errmsg)
 
+    # Check that all points were visited
+    if not np.all(done):
+        errmsg = (
+            "Failed to integrate all flows. The input graph must be fully connected."
+        )
+        raise ValueError(errmsg)
+
     # Adding the source node value - we started at index 0
     if np.iscomplexobj(indata):
         unwrapped += np.angle(indata[0])
@@ -147,10 +155,27 @@ def centroid_costs(
     dual_edges: np.ndarray,
     scale: float = 100.0,
 ) -> np.ndarray:
-    """Estimate edge costs based on centroid distance.
+    """Estimate edge costs based on centroid distance in dual graph.
 
     Should probably relocate to a common area where cost functions are
     maintained at a later date.
+
+    Parameters
+    ----------
+    points: np.ndarray
+        Location of points on data/primal grid
+    cycles: np.ndarray
+        Cycles in the primal graph
+    dual_edges: np.ndarray
+        Array of size (nedges, 2) where each element represents the cycle in
+        which a primal edge participates. 1-index to account for grounding node
+        in the dual graph.
+
+    Returns
+    -------
+    cost: np.ndarray
+        Nonnegative integer cost of the form 1 + distance / scale. Boundary
+        edge costs are set to zero.
     """
     cost = np.zeros(dual_edges.shape[0], dtype=int)
     centroids = np.zeros((len(cycles), 2))
@@ -173,10 +198,22 @@ def distance_costs(
     edges: np.ndarray,
     scale: float = 100.0,
 ) -> np.ndarray:
-    """Estimate edge costs based on distance between points.
+    """Estimate edge costs based on distance between points in primal graph.
 
     Should probably relocate to a common area where cost functions are
     maintained at a later date.
+
+    Parameters
+    ----------
+    points: np.ndarray
+        Locations on points on data/primal grid
+    edges: np.ndarray
+        Array of size (nedges, 2) containing indices of connected points/nodes.
+
+    Returns
+    -------
+    cost: np.ndarray
+        Nonnegative integer cost of the form 1 + distance / scale
     """
     cost = np.zeros(edges.shape[0], dtype=int)
     for ii, edge in enumerate(edges):
