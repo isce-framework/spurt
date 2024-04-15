@@ -55,8 +55,26 @@ class PlanarGraphInterface(GraphInterface, Protocol):
     Interface to a 2D planar graph.
 
     This provides an additional access to the boundary (convex_hull) of the
-    graph.
+    graph. This class is specifically meant for use with MCF solvers and will
+    provide a common interface for Regular 2D grids and Delaunay
+    triangulations. The following assumptions are made regarding our interface
+    for ease of use with MCF solvers:
+        - The graph is connected.
+        - Every edge is a part of one or two cycles utmost.
+        - The links are always oriented from lower index into the points array
+        to the higher index.
+        - The cycles are all oriented in a single direction - either clockwise
+        or anti-clockwise.
+        - All the cycles returned by the interface are of the same length.
     """
+
+    @property
+    def cycles(self) -> np.ndarray:
+        """Return cycles as ndarray as cycles are of same length.
+
+        Since all cycles are assumed to be of equal length here, we can use an
+        ndarray to be efficient.
+        """
 
     @property
     def boundary(self) -> np.ndarray | list[list[int]]:
