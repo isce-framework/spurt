@@ -167,10 +167,13 @@ class ORMCFSolver(MCFSolverInterface):
         if worker_count is None:
             worker_count = max(1, get_cpu_count() - 1)
 
+        if revcost is None:
+            revcost = cost
+
         # Get dimensions of the problem
         nruns, nresidues = residues.shape
 
-        if nresidues != len(self.cycles):
+        if nresidues != len(self.cycles) + 1:
             errmsg = (
                 f"Number of residues {nresidues} does not match number of"
                 f" cycles {len(self.cycles)}"
@@ -198,8 +201,14 @@ class ORMCFSolver(MCFSolverInterface):
         p.close()
 
         # Gather results
-        for ind, flow in mp_tasks:
-            flows[ind, :] = flow
+        count = 0
+        for res in mp_tasks:
+            flows[res[0], :] = res[1]
+            count += 1
+
+        assert count == nruns
+
+        return flows
 
 
 def solve_mcf(
@@ -274,6 +283,9 @@ def solve_mcf(
     return flows
 
 
-def wrap_solve_mcf(ind: int, *args) -> tuple[int, np.ndarray]:
+def wrap_solve_mcf(
+    args: tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None],
+) -> tuple[int, np.ndarray]:
     """Parallel version of solve_mcf."""
-    return (ind, solve_mcf(*args))
+    ind, es, ed, rr, cc, rc = args
+    return (ind, solve_mcf(es, ed, rr, cc, rc))
