@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from multiprocessing import Pool
+
 import numpy as np
 from numpy.typing import ArrayLike
 from ortools.graph.python import min_cost_flow
 
 from ..graph import PlanarGraphInterface, order_points
+from ..utils import get_cpu_count
 from ._interface import MCFSolverInterface
 from .utils import flood_fill, phase_diff, sign_nonzero
 
@@ -148,6 +151,56 @@ class ORMCFSolver(MCFSolverInterface):
         """
         return solve_mcf(self._dual_edges, self._dual_edge_dir, residues, cost, revcost)
 
+    def residues_to_flows_many(
+        self,
+        residues: np.ndarray,
+        cost: np.ndarray,
+        revcost: np.ndarray | None = None,
+        worker_count: int | None = None,
+    ) -> np.ndarray:
+        """Parallel version of residues_to_flows.
+
+        The worker_count is set to get_cpu_count() - 1 if not provided.
+        Treating costs as 1D arrays for now. Can consider 2D at a later time,
+        if necessary.
+        """
+        if worker_count is None:
+            worker_count = max(1, get_cpu_count() - 1)
+
+        # Get dimensions of the problem
+        nruns, nresidues = residues.shape
+
+        if nresidues != len(self.cycles):
+            errmsg = (
+                f"Number of residues {nresidues} does not match number of"
+                f" cycles {len(self.cycles)}"
+            )
+            raise ValueError(errmsg)
+
+        # Create flows output variable
+        flows = np.zeros((nruns, len(self.edges)), dtype=np.int32)
+
+        # Function to call with worker pool
+        def uw_inputs(idxs):
+            for ii in idxs:
+                yield (
+                    ii,
+                    self._dual_edges,
+                    self._dual_edge_dir,
+                    residues[ii],
+                    cost,
+                    revcost,
+                )
+
+        # Create a pool and dispatch
+        p = Pool(processes=worker_count, maxtasksperchild=1)
+        mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
+        p.close()
+
+        # Gather results
+        for ind, flow in mp_tasks:
+            flows[ind, :] = flow
+
 
 def solve_mcf(
     edges: np.ndarray,
@@ -219,3 +272,8 @@ def solve_mcf(
         flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii) - smcf.flow(ii + num_edges))
 
     return flows
+
+
+def wrap_solve_mcf(ind: int, *args) -> tuple[int, np.ndarray]:
+    """Parallel version of solve_mcf."""
+    return (ind, solve_mcf(*args))
