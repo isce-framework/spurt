@@ -113,3 +113,53 @@ def test_snaphu_sparse():
     mean_diff = np.mean(unw - phase)
     offset = 2.0 * np.pi * np.round(mean_diff / (2.0 * np.pi))
     np.testing.assert_allclose(unw, phase + offset, atol=1e-3)
+
+
+def test_unwrap_many():
+    """Test basic 2D unwrapping."""
+
+    graph, point_data = gen_data_real()
+
+    solver = spurt.mcf.ORMCFSolver(graph)
+
+    # Based on current internal unit test
+    # Setting up cost function based on centroid distance
+    cost = spurt.mcf.utils.centroid_costs(
+        graph.points, solver.cycles, solver.dual_edges
+    )
+    resid = solver.compute_residues(point_data)
+
+    ncopies = 20
+    nworkers = 4
+
+    residues = np.zeros((ncopies, len(resid)), dtype=int)
+    residues[:, :] = resid[None, :]
+
+    flows = solver.residues_to_flows_many(residues, cost, worker_count=nworkers)
+
+    assert np.ptp(np.ptp(flows, axis=0)) == 0
+
+
+def test_unwrap_many_oneworker():
+    """Test basic 2D unwrapping."""
+
+    graph, point_data = gen_data_real()
+
+    solver = spurt.mcf.ORMCFSolver(graph)
+
+    # Based on current internal unit test
+    # Setting up cost function based on centroid distance
+    cost = spurt.mcf.utils.centroid_costs(
+        graph.points, solver.cycles, solver.dual_edges
+    )
+    resid = solver.compute_residues(point_data)
+
+    ncopies = 4
+    nworkers = 1
+
+    residues = np.zeros((ncopies, len(resid)), dtype=int)
+    residues[:, :] = resid[None, :]
+
+    flows = solver.residues_to_flows_many(residues, cost, worker_count=nworkers)
+
+    assert np.ptp(np.ptp(flows, axis=0)) == 0
