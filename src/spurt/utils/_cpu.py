@@ -1,7 +1,6 @@
 import math
+from multiprocessing import cpu_count
 from pathlib import Path
-
-from multiprocess import cpu_count
 
 
 def get_cpu_count() -> int:
