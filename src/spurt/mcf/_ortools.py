@@ -202,15 +202,14 @@ class ORMCFSolver(MCFSolverInterface):
 
         else:
             # Create a pool and dispatch
-            p = Pool(processes=worker_count, maxtasksperchild=1)
-            mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
-            p.close()
+            with Pool(processes=worker_count, maxtasksperchild=1) as p:
+                mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
 
-            # Gather results
-            count = 0
-            for res in mp_tasks:
-                flows[res[0], :] = res[1]
-                count += 1
+                # Gather results
+                count = 0
+                for res in mp_tasks:
+                    flows[res[0], :] = res[1]
+                    count += 1
 
             assert count == nruns, "Output size != Input size"
 
