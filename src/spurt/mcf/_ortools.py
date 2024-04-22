@@ -266,16 +266,16 @@ class ORMCFSolver(MCFSolverInterface):
                     )
 
             # Create a pool and dispatch
-            # We explicitly use fork here as osx has switched to using spawn
-            # and that really slows down the use of multiprocessing
-            with get_context("fork").Pool(
-                processes=worker_count, maxtasksperchild=1
-            ) as p:
+            with Pool(processes=worker_count, maxtasksperchild=1) as p:
                 mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
 
                 # Gather results
+                count = 0
                 for res in mp_tasks:
                     flows[res[0], :] = res[1]
+                    count += 1
+
+            assert count == nruns, "Output size != Input size"
 
         return flows
 
