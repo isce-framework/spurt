@@ -3,9 +3,12 @@ from __future__ import annotations
 import numpy as np
 
 
-def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
-    """
-    Compute the wrapped phase difference for between two numbers in radians.
+def phase_diff(
+    z0: np.ndarray, z1: np.ndarray, model: float | np.ndarray = 0.0
+) -> np.ndarray:
+    """Compute the wrapped phase difference for between two numbers in radians.
+
+    If a model is provided, represents phase difference within +/-pi of the model.
 
     Parameters
     ----------
@@ -13,14 +16,16 @@ def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
         Can be complex or real
     z1 : np.ndarray
         Same type as z0
+    model: float | np.ndarray, optional
+        Real array with a model of the phase difference
     """
     if np.iscomplexobj(z0):
         p0 = np.angle(z0)
         p1 = np.angle(z1)
-        d = p1 - p0
+        d = p1 - p0 - model
     else:
-        d = z1 - z0
-    return d - np.round(d / (2 * np.pi)) * 2 * np.pi
+        d = z1 - z0 - model
+    return model + d - np.round(d / (2 * np.pi)) * 2 * np.pi
 
 
 def sign_nonzero(x: float) -> int:
