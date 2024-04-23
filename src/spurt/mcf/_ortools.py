@@ -217,7 +217,7 @@ class ORMCFSolver(MCFSolverInterface):
         Treating costs as 1D arrays for now. Can consider 2D at a later time,
         if necessary.
         """
-        if worker_count is None:
+        if (worker_count is None) or (worker_count <= 0):
             worker_count = max(1, get_cpu_count() - 1)
 
         if revcost is None:

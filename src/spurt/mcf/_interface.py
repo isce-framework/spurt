@@ -33,6 +33,8 @@ class MCFSolverInterface(Protocol):
         Number of cycles in primal graph.
     cycle_length: int
         Length of cycles in primal graph.
+    points: ArrayLike
+        2D array of size (npoints, 2) with coordinates.
     edges: ArrayLike
         2D array of size (nedges, 2) where values indicate index into points
         array. Edges always go from lower index to higher index.
@@ -66,6 +68,18 @@ class MCFSolverInterface(Protocol):
     @property
     def cycle_length(self) -> int:
         """Length of cycles in primal graph."""
+
+    @property
+    def points(self) -> int:
+        """Points in primal graph."""
+
+    @property
+    def edges(self) -> ArrayLike:
+        """Edges in primal graph."""
+
+    @property
+    def cycles(self) -> ArrayLike:
+        """Cycles in primal graph."""
 
     @property
     def dual_edges(self) -> ArrayLike:
@@ -168,7 +182,11 @@ class MCFSolverInterface(Protocol):
         """
 
     def residues_to_flows_many(
-        self, residues: ArrayLike, cost: ArrayLike, revcost: ArrayLike | None = None
+        self,
+        residues: ArrayLike,
+        cost: ArrayLike,
+        revcost: ArrayLike | None = None,
+        worker_count: int | None = None,
     ) -> ArrayLike:
         """Solver should return integer flows corresponding to given residues.
 
