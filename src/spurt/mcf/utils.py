@@ -51,7 +51,8 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     Parameters
     ----------
     indata: np.ndarray
-        Input wrapped phase data as 1D array. Same size as number of points in graph.
+        Input wrapped phase/ gradient data as 1D array. Same size as number of
+        points/ edges in graph.
     links : np.ndarray
         Links specifed as tuples of point indices. The links should represented
         a fully connected graph.
@@ -67,8 +68,16 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         errmsg = f"Dimension mismatch - {links.shape} vs {flows.shape}"
         raise ValueError(errmsg)
 
+    if len(indata) == len(links):
+        input_is_pts = False
+        npts = np.max(links)
+
+    else:
+        input_is_pts = True
+        npts = len(indata)
+
     # Indices of points
-    pts = np.arange(len(indata))
+    pts = np.arange(npts)
 
     # Mapping of points to its immediate neighbors and gradient on the link
     pts_to_nbrs: dict = {pt: [] for pt in pts}
@@ -76,7 +85,12 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     # Iterate over the links
     for ii, link in enumerate(links):
         # Get the unwrapped phase gradient by adding flows to
-        gradient = phase_diff(indata[link[0]], indata[link[1]]) + 2 * np.pi * flows[ii]
+        if input_is_pts:
+            gradient = (
+                phase_diff(indata[link[0]], indata[link[1]]) + 2 * np.pi * flows[ii]
+            )
+        else:
+            gradient = indata[ii] + 2 * np.pi * flows[ii]
 
         # Add the link in either direction with appropriate gradient sign
         pts_to_nbrs[link[0]].append((link[1], gradient))
@@ -146,10 +160,11 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         raise ValueError(errmsg)
 
     # Adding the source node value - we started at index 0
-    if np.iscomplexobj(indata):
-        unwrapped += np.angle(indata[0])
-    else:
-        unwrapped += indata[0]
+    if input_is_pts:
+        if np.iscomplexobj(indata):
+            unwrapped += np.angle(indata[0])
+        else:
+            unwrapped += indata[0]
 
     return unwrapped
 

@@ -89,7 +89,7 @@ class ORMCFSolver(MCFSolverInterface):
                 # Sign indicates if the edge order in forward / reverse
                 # direction. We augment icyc by 1 to use the sign infomation.
                 edge_to_cycles[edge].append(
-                    (icyc + 1, sign_nonzero(cycle[ii] - cycle[jj]))
+                    (icyc + 1, sign_nonzero(cycle[jj] - cycle[ii]))
                 )
 
         # Now build list of dual_edges
@@ -162,8 +162,8 @@ class ORMCFSolver(MCFSolverInterface):
         cyc1_dir = self.dual_edge_dir[:, 1]
         grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
         # add.at to handle repeated indices
-        np.add.at(grad_sum, cyc0, -cyc0_dir * graddata)
-        np.add.at(grad_sum, cyc1, -cyc1_dir * graddata)
+        np.add.at(grad_sum, cyc0, cyc0_dir * graddata)
+        np.add.at(grad_sum, cyc1, cyc1_dir * graddata)
 
         residues = np.rint(grad_sum / (2 * np.pi))
         # Set supply of groud_node
@@ -336,7 +336,7 @@ def solve_mcf(
     flows = np.zeros(num_edges, dtype=int)
     for ii in range(num_edges):
         # Sign accounts for orientation of edge in cycles
-        flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii) - smcf.flow(ii + num_edges))
+        flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii + num_edges) - smcf.flow(ii))
 
     return flows
 
