@@ -40,7 +40,6 @@ def test_flood_fill():
 
     point_data1 = spurt.mcf.utils.flood_fill(point_data, edges, flows)
 
-    print(point_data.min(), point_data.max())
     assert not np.allclose(np.ptp(point_data), 0.0)
     assert np.allclose(np.ptp(point_data - point_data1), 0.0)
 
@@ -64,8 +63,8 @@ def test_unwrap_one():
     ugrads = uwdata[edges[:, 1]] - uwdata[edges[:, 0]]
     diff = ugrads - grads
 
+    assert solver.npoints == point_data.shape[0]
     assert np.max(np.abs(diff)) > 1
-
     assert np.ptp(wrap(diff)) < 1.0e-3
 
 
@@ -163,3 +162,42 @@ def test_unwrap_many_oneworker():
     flows = solver.residues_to_flows_many(residues, cost, worker_count=nworkers)
 
     assert np.ptp(np.ptp(flows, axis=0)) == 0
+
+
+def test_grad_residues():
+    """Test residue computation using points and gradients."""
+    graph, point_data = gen_data_real()
+    solver = spurt.mcf.ORMCFSolver(graph)
+    grads = point_data[solver.edges[:, 1]] - point_data[solver.edges[:, 0]]
+    grads_resid = solver.compute_residues_from_gradients(grads)
+
+    """
+    pts_resid = solver.compute_residue(point_data)
+    print(solver.cycles[0])
+    print(grads_resid[1], pts_resid[1])
+    print(point_data[solver.cycles[0]])
+    edge_to_index = {}
+    for ii, edge in enumerate(solver.edges):
+        edge_to_index[spurt.graph.utils.order_points((edge[0], edge[1]))] = ii
+
+    cyc = solver.cycles[0]
+
+    for ii in range(3):
+        jj = (ii + 1) % 3
+        ind = edge_to_index[spurt.graph.utils.order_points((cyc[ii], cyc[jj]))]
+        print(ind, grads[ind], solver.dual_edges[ind], solver.dual_edge_dir[ind])
+    """
+    assert grads_resid.min() == 0
+    assert grads_resid.max() == 0
+
+
+def test_residues():
+    """Test residue computation using points and gradients."""
+    graph, point_data = gen_data_real()
+    solver = spurt.mcf.ORMCFSolver(graph)
+    grads = spurt.mcf.utils.phase_diff(
+        point_data[solver.edges[:, 0]], point_data[solver.edges[:, 1]]
+    )
+    pts_resid = solver.compute_residues(point_data)
+    grads_resid = solver.compute_residues_from_gradients(grads)
+    np.testing.assert_array_equal(pts_resid, grads_resid)

@@ -30,19 +30,41 @@ class ORMCFSolver(MCFSolverInterface):
         multiple inputs
         """
         # We borrow the arrays and avoid copying
-        self.npoints = graph.npoints
-        self.edges = graph.links
-        self.cycles = graph.cycles
+        self._graph: PlanarGraphInterface = graph
 
         # These are needed for MCF
         # Edges represent arcs between cycles
-        self._dual_edges: np.ndarray = np.zeros((len(self.edges), 2), dtype=np.int32)
+        self._dual_edges: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int32)
         # One-to-one correspondence with _dual_edges and represents
         # relative orientation of an edge within a cycle
         # -1 implies increasing/ fwd direction, 1 implies decreasing/reverse
         # direction and zero denotes an edge to the grounding node
-        self._dual_edge_dir: np.ndarray = np.zeros((len(self.edges), 2), dtype=np.int8)
+        self._dual_edge_dir: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int8)
         self._prepare_dual()
+
+    @property
+    def npoints(self) -> int:
+        return self._graph.npoints
+
+    @property
+    def nedges(self) -> int:
+        return len(self._graph.links)
+
+    @property
+    def ncycles(self) -> int:
+        return len(self._graph.cycles)
+
+    @property
+    def edges(self) -> np.ndarray:
+        return self._graph.links
+
+    @property
+    def cycles(self) -> np.ndarray:
+        return self._graph.cycles
+
+    @property
+    def cycle_length(self) -> int:
+        return len(self.cycles[0])
 
     def _prepare_dual(self) -> None:
         """Identify edges of the dual graph.
@@ -93,6 +115,10 @@ class ORMCFSolver(MCFSolverInterface):
     def dual_edges(self) -> np.ndarray:
         return self._dual_edges
 
+    @property
+    def dual_edge_dir(self) -> np.ndarray:
+        return self._dual_edge_dir
+
     def compute_residues(
         self,
         wrapdata: ArrayLike,
@@ -100,14 +126,14 @@ class ORMCFSolver(MCFSolverInterface):
         """Compute phase residues for one set of input wrapped data."""
         if wrapdata.size != self.npoints:
             errmsg = (
-                f"Size mismatch for unwrapping."
+                f"Size mismatch for residue computation."
                 f" Received {wrapdata.shape} with {self.npoints} points"
             )
             raise ValueError(errmsg)
 
         # Residues includes the grounding node at index 0
-        residues = np.zeros(len(self.cycles) + 1)
-        ndim = len(self.cycles[0])
+        residues = np.zeros(self.ncycles + 1)
+        ndim = self.cycle_length
         for col in range(ndim):
             nn = (col + 1) % ndim
             residues[1:] += phase_diff(
@@ -116,6 +142,33 @@ class ORMCFSolver(MCFSolverInterface):
         residues = np.rint(residues / (2 * np.pi))
         # Set supply of ground_node
         residues[0] = -np.sum(residues[1:])
+        return residues
+
+    def compute_residues_from_gradients(
+        self,
+        graddata: ArrayLike,
+    ) -> ArrayLike:
+        """Compute phase residues for one set of real input gradients."""
+        if graddata.size != self.nedges:
+            errmsg = (
+                f"Size mismatch for residue computation."
+                f" Received {graddata.shape} with {self.nedges} edges"
+            )
+            raise ValueError(errmsg)
+
+        cyc0 = np.abs(self.dual_edges[:, 0])
+        cyc1 = np.abs(self.dual_edges[:, 1])
+        cyc0_dir = self.dual_edge_dir[:, 0]
+        cyc1_dir = self.dual_edge_dir[:, 1]
+        grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
+        # add.at to handle repeated indices
+        np.add.at(grad_sum, cyc0, -cyc0_dir * graddata)
+        np.add.at(grad_sum, cyc1, -cyc1_dir * graddata)
+
+        residues = np.rint(grad_sum / (2 * np.pi))
+        # Set supply of groud_node
+        residues[0] = -np.sum(residues[1:])
+
         return residues
 
     def unwrap_one(
@@ -173,15 +226,15 @@ class ORMCFSolver(MCFSolverInterface):
         # Get dimensions of the problem
         nruns, nresidues = residues.shape
 
-        if nresidues != len(self.cycles) + 1:
+        if nresidues != self.ncycles + 1:
             errmsg = (
                 f"Number of residues {nresidues} does not match number of"
-                f" cycles {len(self.cycles)}"
+                f" cycles {self.ncycles}"
             )
             raise ValueError(errmsg)
 
         # Create flows output variable
-        flows = np.zeros((nruns, len(self.edges)), dtype=np.int32)
+        flows = np.zeros((nruns, self.nedges), dtype=np.int32)
 
         # Function to call with worker pool
         def uw_inputs(idxs):
