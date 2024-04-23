@@ -161,8 +161,8 @@ class ORMCFSolver(MCFSolverInterface):
         cyc1_dir = self.dual_edge_dir[:, 1]
         grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
         # add.at to handle repeated indices
-        np.add.at(grad_sum, cyc0, cyc0_dir * graddata)
-        np.add.at(grad_sum, cyc1, cyc1_dir * graddata)
+        np.add.at(grad_sum, cyc0, -cyc0_dir * graddata)
+        np.add.at(grad_sum, cyc1, -cyc1_dir * graddata)
 
         residues = np.rint(grad_sum / (2 * np.pi))
         # Set supply of groud_node
@@ -240,6 +240,18 @@ class ORMCFSolver(MCFSolverInterface):
 
         # Create flows output variable
         flows = np.zeros((nruns, self.nedges), dtype=np.int32)
+
+        # Function to call with worker pool
+        def uw_inputs(idxs):
+            for ii in idxs:
+                yield (
+                    ii,
+                    self._dual_edges,
+                    self._dual_edge_dir,
+                    residues[ii],
+                    cost,
+                    revcost,
+                )
 
         # Only use multiprocessing if needed
         if worker_count == 1:
