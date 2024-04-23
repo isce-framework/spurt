@@ -161,8 +161,8 @@ class ORMCFSolver(MCFSolverInterface):
         cyc1_dir = self.dual_edge_dir[:, 1]
         grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
         # add.at to handle repeated indices
-        np.add.at(grad_sum, cyc0, -cyc0_dir * graddata)
-        np.add.at(grad_sum, cyc1, -cyc1_dir * graddata)
+        np.add.at(grad_sum, cyc0, cyc0_dir * graddata)
+        np.add.at(grad_sum, cyc1, cyc1_dir * graddata)
 
         residues = np.rint(grad_sum / (2 * np.pi))
         # Set supply of groud_node
