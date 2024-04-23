@@ -13,7 +13,7 @@ import numpy as np
 from spurt.links import LinkModelInterface
 from spurt.mcf import MCFSolverInterface, utils
 
-from ._settings import Settings
+from ._Settings import Settings
 
 
 class EMCFSolver:
@@ -93,7 +93,7 @@ class EMCFSolver:
             2D float32 array of size (nifg, npoints).
         """
         if wrap_data.ndim != 2:
-            errmsg = f"Input data is not a 2D array - {wrap_data.ndim}"
+            errmsg = f"Input data has more than two dimension - {wrap_data.ndim}"
             raise ValueError(errmsg)
 
         if wrap_data.shape[0] == self.nepochs:
@@ -108,14 +108,12 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self.unwrap_gradients_in_time(wrap_data, input_is_ifg=input_is_ifg)
+        grad_space = self._unwrap_time(wrap_data, input_is_ifg=input_is_ifg)
 
         # Then unwrap spatial gradients
-        return self.unwrap_gradients_in_space(grad_space)
+        return self._unwrap_space(grad_space)
 
-    def unwrap_gradients_in_time(
-        self, wrap_data: np.ndarray, *, input_is_ifg: bool
-    ) -> np.ndarray:
+    def _unwrap_time(self, wrap_data: np.ndarray, *, input_is_ifg: bool) -> np.ndarray:
         """Temporally unwrap links in parallel."""
         # First set up temporal cost
         if self.settings.t_cost_type == "unit":
@@ -137,12 +135,13 @@ class EMCFSolver:
             errmsg = f"Unknown cost type: {self.settings.t_cost_type}"
             raise ValueError(errmsg)
 
+        # Mapping from temporal edges to index in edges array
+        edge_to_index = {}
+        for ii, edge in enumerate(self._solver_time.edges):
+            edge_to_index[(edge[0], edge[1])] = ii
+
         # Create output array
         grad_space = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
-
-        print(f"Temporal: Number of interferograms: {self.nifgs}")
-        print(f"Temporal: Number of links: {self.nlinks}")
-        print(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
         nbatches = (self.nlinks // self.settings.points_per_batch) + 1
@@ -168,12 +167,11 @@ class EMCFSolver:
                     wrap_data[:, inds[:, 0]], wrap_data[:, inds[:, 1]]
                 )
             else:
-                print(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
                 ifg_inds = self._solver_time.edges
 
                 # Extract SLC data first
-                slc_data0 = wrap_data[:, inds[:, 0]]
-                slc_data1 = wrap_data[:, inds[:, 1]]
+                slc_data0 = wrap_data[:, inds[0]]
+                slc_data1 = wrap_data[:, inds[1]]
 
                 # Make interferograms for extracted points
                 ifg_data0 = utils.phase_diff(
@@ -199,18 +197,21 @@ class EMCFSolver:
             grad_sum = np.zeros((links_in_batch, ncycles + 1), dtype=np.float32)
             for ii in range(self.nifgs):
                 # Cycles that ifg contributes to
-                cyc = np.abs(self._solver_time.dual_edges[ii])
+                cyc = self._solver_time.dual_edges[ii]
                 cyc_dir = self._solver_time.dual_edge_dir[ii]
-                grad_sum[:, cyc[0]] += cyc_dir[0] * grad_space[ii, i_start:i_end]
+                grad_sum[:, cyc[0]] += (
+                    cyc_dir[0] * grad_space[abs(cyc[0]), i_start:i_end]
+                )
                 if cyc[1] != 0:
-                    grad_sum[:, cyc[1]] += cyc_dir[1] * grad_space[ii, i_start:i_end]
+                    grad_sum[:, cyc[1]] += (
+                        cyc_dir[1] * grad_space[abs(cyc[1]), i_start:i_end]
+                    )
 
             residues = np.rint(grad_sum / (2 * np.pi))
             # Set grounding node
-            residues[:, 0] = -np.sum(residues[:, 1:], axis=1)
+            residues[:, 0] = -np.sum(residues[:, 1:], axis=0)
 
             # Unwrap the batch
-            print(f"Temporal: Unwrapping batch {bb + 1}/{nbatches}")
             flows = self._solver_time.residues_to_flows_many(
                 residues, cost, worker_count=self.settings.worker_count
             )
@@ -220,7 +221,7 @@ class EMCFSolver:
 
         return grad_space
 
-    def unwrap_gradients_in_space(self, grad_space: np.ndarray) -> np.ndarray:
+    def _unwrap_space(self, grad_space: np.ndarray) -> np.ndarray:
         """Spatially unwrap each interferogram sequentially."""
         # First set up temporal cost
         if self.settings.s_cost_type == "unit":
@@ -245,12 +246,7 @@ class EMCFSolver:
         # Create output array
         uw_data = np.zeros((self.nifgs, self.npoints), dtype=np.float32)
 
-        print(f"Spatial: Number of interferograms: {self.nifgs}")
-        print(f"Spatial: Number of links: {self.nlinks}")
-        print(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
-
         for ii in range(self.nifgs):
-            print(f"Spatial: Unwrapping {ii + 1} / {self.nifgs}")
             # Slice per ifg
             ifg_grad = grad_space[ii, :]
 
