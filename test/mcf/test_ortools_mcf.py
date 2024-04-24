@@ -44,6 +44,23 @@ def test_flood_fill():
     assert np.allclose(np.ptp(point_data - point_data1), 0.0)
 
 
+def test_flood_fill_gradients():
+    """Test the flood fill implementation with gradients."""
+
+    graph, point_data = gen_data_real()
+    edges = graph.links
+
+    # The generated data is truth and flows are derived from it
+    # Flows are fed back to ensure that flood fill unwraps it correctly
+    grads = spurt.mcf.utils.phase_diff(point_data[edges[:, 0]], point_data[edges[:, 1]])
+    flows = np.rint((point_data[edges[:, 1]] - point_data[edges[:, 0]]) / (2 * np.pi))
+
+    point_data1 = spurt.mcf.utils.flood_fill(grads, edges, flows)
+
+    assert not np.allclose(np.ptp(point_data), 0.0)
+    assert np.allclose(np.ptp(point_data - point_data1), 0.0)
+
+
 def test_unwrap_one():
     """Test basic 2D unwrapping."""
 
