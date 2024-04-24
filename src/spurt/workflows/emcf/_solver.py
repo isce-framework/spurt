@@ -9,7 +9,7 @@ from spurt.links import LinkModelInterface
 from spurt.mcf import MCFSolverInterface, utils
 from spurt.utils import logger
 
-from ._Settings import Settings
+from ._settings import Settings
 
 
 class EMCFSolver:
@@ -161,6 +161,10 @@ class EMCFSolver:
         # Create output array
         grad_space: np.ndarray = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
+        print(f"Temporal: Number of interferograms: {self.nifgs}")
+        print(f"Temporal: Number of links: {self.nlinks}")
+        print(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
+
         # Number of batches to process
         nbatches: int = ((self.nlinks - 1) // self.settings.links_per_batch) + 1
 
@@ -185,11 +189,12 @@ class EMCFSolver:
                     wrap_data[:, inds[:, 0]], wrap_data[:, inds[:, 1]]
                 )
             else:
+                print(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
                 ifg_inds = self._solver_time.edges
 
                 # Extract SLC data first
-                slc_data0 = wrap_data[:, inds[0]]
-                slc_data1 = wrap_data[:, inds[1]]
+                slc_data0 = wrap_data[:, inds[:, 0]]
+                slc_data1 = wrap_data[:, inds[:, 1]]
 
                 # Make interferograms for extracted points
                 ifg_data0 = utils.phase_diff(
@@ -204,21 +209,18 @@ class EMCFSolver:
             )
             for ii in range(self.nifgs):
                 # Cycles that ifg contributes to
-                cyc = self._solver_time.dual_edges[ii]
+                cyc = np.abs(self._solver_time.dual_edges[ii])
                 cyc_dir = self._solver_time.dual_edge_dir[ii]
-                grad_sum[:, cyc[0]] += (
-                    cyc_dir[0] * grad_space[abs(cyc[0]), i_start:i_end]
-                )
+                grad_sum[:, cyc[0]] += cyc_dir[0] * grad_space[ii, i_start:i_end]
                 if cyc[1] != 0:
-                    grad_sum[:, cyc[1]] += (
-                        cyc_dir[1] * grad_space[abs(cyc[1]), i_start:i_end]
-                    )
+                    grad_sum[:, cyc[1]] += cyc_dir[1] * grad_space[ii, i_start:i_end]
 
             residues = np.rint(grad_sum / (2 * np.pi))
             # Set grounding node
-            residues[:, 0] = -np.sum(residues[:, 1:], axis=0)
+            residues[:, 0] = -np.sum(residues[:, 1:], axis=1)
 
             # Unwrap the batch
+            print(f"Temporal: Unwrapping batch {bb + 1}/{nbatches}")
             flows = self._solver_time.residues_to_flows_many(
                 residues, cost, worker_count=self.settings.worker_count
             )
@@ -253,7 +255,12 @@ class EMCFSolver:
         # Create output array
         uw_data = np.zeros((self.nifgs, self.npoints), dtype=np.float32)
 
+        print(f"Spatial: Number of interferograms: {self.nifgs}")
+        print(f"Spatial: Number of links: {self.nlinks}")
+        print(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
+
         for ii in range(self.nifgs):
+            print(f"Spatial: Unwrapping {ii + 1} / {self.nifgs}")
             # Slice per ifg
             ifg_grad = grad_space[ii, :]
 
