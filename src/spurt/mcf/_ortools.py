@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from multiprocessing import Pool
+from multiprocessing import get_context
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -202,6 +202,8 @@ class ORMCFSolver(MCFSolverInterface):
 
         This is exposed to allow for unwrapping with gradients.
         """
+        if revcost is None:
+            revcost = cost
         return solve_mcf(self._dual_edges, self._dual_edge_dir, residues, cost, revcost)
 
     def residues_to_flows_many(
@@ -236,26 +238,31 @@ class ORMCFSolver(MCFSolverInterface):
         # Create flows output variable
         flows = np.zeros((nruns, self.nedges), dtype=np.int32)
 
-        # Function to call with worker pool
-        def uw_inputs(idxs):
-            for ii in idxs:
-                yield (
-                    ii,
-                    self._dual_edges,
-                    self._dual_edge_dir,
-                    residues[ii],
-                    cost,
-                    revcost,
-                )
-
         # Only use multiprocessing if needed
         if worker_count == 1:
             for ii, res in enumerate(residues):
                 flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
 
         else:
+            print(f"Processing batch of {nruns} with {worker_count} threads")
+
+            def uw_inputs(idxs):
+                for ii in idxs:
+                    yield (
+                        ii,
+                        self._dual_edges,
+                        self._dual_edge_dir,
+                        residues[ii],
+                        cost,
+                        revcost,
+                    )
+
             # Create a pool and dispatch
-            with Pool(processes=worker_count, maxtasksperchild=1) as p:
+            # We explicitly use fork here as osx has switched to using spawn
+            # and that really slows down the use of multiprocessing
+            with get_context("fork").Pool(
+                processes=worker_count, maxtasksperchild=1
+            ) as p:
                 mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
 
                 # Gather results
