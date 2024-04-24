@@ -70,7 +70,7 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
 
     if len(indata) == len(links):
         input_is_pts = False
-        npts = np.max(links)
+        npts = np.max(links) + 1
 
     else:
         input_is_pts = True
