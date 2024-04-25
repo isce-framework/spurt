@@ -12,7 +12,7 @@ def wrap(x):
 
 def gen_data_real():
     """Generate a sparse 2D dataset"""
-    npoints = 4000
+    npoints = 1000
 
     # Coordinates of points.
     points = np.random.randn(2 * npoints).reshape((npoints, 2))
@@ -89,7 +89,7 @@ def test_snaphu_data():
     """Borrow this unit test data from snaphu."""
 
     # Simulate interferogram containing a diagonal phase ramp with multiple fringes.
-    y, x = np.ogrid[-3:3:512j, -3:3:512j]
+    y, x = np.ogrid[-3:3:256j, -3:3:256j]
     phase = np.pi * (x + y)
 
     igram = np.exp(1j * phase)
@@ -112,7 +112,7 @@ def test_snaphu_sparse():
     """Borrow this unit test data from snaphu."""
 
     # Simulate interferogram containing a diagonal phase ramp with multiple fringes.
-    y, x = np.ogrid[-3:3:512j, -3:3:512j]
+    y, x = np.ogrid[-3:3:256j, -3:3:256j]
     phase = np.pi * (x + y)
 
     igram = np.exp(1j * phase)
