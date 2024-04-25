@@ -108,12 +108,14 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self._unwrap_time(wrap_data, input_is_ifg=input_is_ifg)
+        grad_space = self.unwrap_gradients_in_time(wrap_data, input_is_ifg=input_is_ifg)
 
         # Then unwrap spatial gradients
-        return self._unwrap_space(grad_space)
+        return self.unwrap_gradients_in_space(grad_space)
 
-    def _unwrap_time(self, wrap_data: np.ndarray, *, input_is_ifg: bool) -> np.ndarray:
+    def unwrap_gradients_in_time(
+        self, wrap_data: np.ndarray, *, input_is_ifg: bool
+    ) -> np.ndarray:
         """Temporally unwrap links in parallel."""
         # First set up temporal cost
         if self.settings.t_cost_type == "unit":
@@ -223,7 +225,7 @@ class EMCFSolver:
 
         return grad_space
 
-    def _unwrap_space(self, grad_space: np.ndarray) -> np.ndarray:
+    def unwrap_gradients_in_space(self, grad_space: np.ndarray) -> np.ndarray:
         """Spatially unwrap each interferogram sequentially."""
         # First set up temporal cost
         if self.settings.s_cost_type == "unit":
