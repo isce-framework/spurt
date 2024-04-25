@@ -139,8 +139,7 @@ class ORMCFSolver(MCFSolverInterface):
             residues[1:] += phase_diff(
                 wrapdata[self.cycles[:, col]], wrapdata[self.cycles[:, nn]]
             )
-        residues = np.rint(residues / (2 * np.pi))
-        # Set supply of ground_node
+        residues = np.rint(residues / (2 * np.pi)).astype(int)
         residues[0] = -np.sum(residues[1:])
         return residues
 
