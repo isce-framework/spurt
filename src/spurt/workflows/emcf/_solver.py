@@ -137,11 +137,6 @@ class EMCFSolver:
             errmsg = f"Unknown cost type: {self.settings.t_cost_type}"
             raise ValueError(errmsg)
 
-        # Mapping from temporal edges to index in edges array
-        edge_to_index = {}
-        for ii, edge in enumerate(self._solver_time.edges):
-            edge_to_index[(edge[0], edge[1])] = ii
-
         # Create output array
         grad_space = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
