@@ -202,6 +202,10 @@ class ORMCFSolver(MCFSolverInterface):
 
         This is exposed to allow for unwrapping with gradients.
         """
+        # Only solve if necessary
+        if not np.any(residues != 0):
+            return np.zeros(self.nedges, dtype=np.int32)
+
         if revcost is None:
             revcost = cost
         return solve_mcf(self._dual_edges, self._dual_edge_dir, residues, cost, revcost)
@@ -241,13 +245,18 @@ class ORMCFSolver(MCFSolverInterface):
         # Only use multiprocessing if needed
         if worker_count == 1:
             for ii, res in enumerate(residues):
-                flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
+                if np.any(res != 0):
+                    flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
 
         else:
             print(f"Processing batch of {nruns} with {worker_count} threads")
 
             def uw_inputs(idxs):
                 for ii in idxs:
+                    # Only solve if needed
+                    if not np.any(residues[ii] != 0):
+                        continue
+
                     yield (
                         ii,
                         self._dual_edges,
@@ -266,12 +275,8 @@ class ORMCFSolver(MCFSolverInterface):
                 mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
 
                 # Gather results
-                count = 0
                 for res in mp_tasks:
                     flows[res[0], :] = res[1]
-                    count += 1
-
-            assert count == nruns, "Output size != Input size"
 
         return flows
 
