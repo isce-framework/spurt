@@ -72,7 +72,7 @@ def test_emcf_ramp():
     # Create EMCF solver
     solver = spurt.workflows.emcf.Solver(s_space, s_time)
     # Test this setting as well
-    solver.worker_count = 1
+    solver.settings.worker_count = 1
 
     uw_data = solver.unwrap_cube(igram.reshape((n_sar, g_space.npoints)))
 
