@@ -37,7 +37,7 @@ class ORMCFSolver(MCFSolverInterface):
         self._dual_edges: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int32)
         # One-to-one correspondence with _dual_edges and represents
         # relative orientation of an edge within a cycle
-        # -1 implies increasing/ fwd direction, 1 implies decreasing/reverse
+        # 1 implies increasing/ fwd direction, -1 implies decreasing/reverse
         # direction and zero denotes an edge to the grounding node
         self._dual_edge_dir: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int8)
         self._prepare_dual()
