@@ -40,3 +40,6 @@ class SolverSettings:
     def __post_init__(self):
         assert self.t_cost_type in ["unit", "distance", "centroid"]
         assert self.s_cost_type in ["unit", "distance", "centroid"]
+        assert self.points_per_batch > 0
+        assert self.t_cost_scale > 0
+        assert self.s_cost_scale > 0
