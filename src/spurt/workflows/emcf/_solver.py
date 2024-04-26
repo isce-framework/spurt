@@ -93,7 +93,7 @@ class EMCFSolver:
             2D float32 array of size (nifg, npoints).
         """
         if wrap_data.ndim != 2:
-            errmsg = f"Input data has more than two dimension - {wrap_data.ndim}"
+            errmsg = f"Input data is not a 2D array - {wrap_data.ndim}"
             raise ValueError(errmsg)
 
         if wrap_data.shape[0] == self.nepochs:
