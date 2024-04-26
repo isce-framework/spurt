@@ -134,7 +134,11 @@ class RegularTiler(TilerInterface):
 
 
 class DensityTiler(TilerInterface):
-    """Tile up points by density."""
+    """Tile up points by density.
+
+    This is based on the nice implementation found here:
+    https://mathoverflow.net/questions/412127/partitioning-unit-square-with-equal-frequency-rectangles
+    """
 
     def __init__(
         self,
@@ -230,7 +234,6 @@ class DensityTiler(TilerInterface):
         self._neighbors = np.array(nbrs)
 
 
-# https://mathoverflow.net/questions/412127/partitioning-unit-square-with-equal-frequency-rectangles
 def _score_rectangle(aa: ArrayLike, bb: ArrayLike, m: int):
     """Compute the score for a rectangle."""
     asum = np.sum(aa)
