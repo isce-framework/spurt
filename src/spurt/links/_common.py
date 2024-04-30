@@ -1,9 +1,9 @@
-from typing import Any
-
 import numpy as np
 
 
-def temporal_coherence(x: np.ndarray, args: tuple[Any, ...]):
+def temporal_coherence(
+    x: np.ndarray, *args: tuple[np.ndarray, np.ndarray, np.ndarray | float]
+):
     """Temporal coherence function to minimize.
 
     args[0]: matrixA
@@ -11,4 +11,4 @@ def temporal_coherence(x: np.ndarray, args: tuple[Any, ...]):
     args[2]: weight
     """
     res = np.dot(args[0], x) - args[1]
-    return -np.sum(args[2] * np.exp(1j * res))
+    return -np.abs(np.sum(args[2] * np.exp(1j * res)))
