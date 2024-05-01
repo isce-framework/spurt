@@ -28,9 +28,11 @@ class Parameters:
 class GridSearchLinearModel(Parameters, LinkModelInterface):
     """Search parameter grid space for the maxima.
 
-    Implements grid search for best fitting parameters,
-    as per Pepe and Lanari (2006).
-    Max: |exp(j * (A * x - b))|
+    Implements grid search for best fitting parameters.
+    We don't solve a bunch of MCF problems like Pepe and Lanari (2006) but
+    instead solve this link-by-link.
+
+    Max: |exp(j * (A * x - b))|^2
     s.t: ranges[i][0] <= x_i <= ranges[i][1]
     """
 
