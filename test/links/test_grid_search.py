@@ -18,7 +18,7 @@ def gen_data():
     bperp = np.random.randn(n_sar) * 600
 
     # In mm/yr
-    vel_range = slice(-2, 2.1, 0.1)
+    vel_range = slice(-100, 100.1, 5)
 
     # In meters
     demerr_range = slice(-5, 5.5, 0.5)
@@ -28,7 +28,9 @@ def gen_data():
     nifgs = len(g_time.links)
 
     amat = np.zeros((nifgs, 2))
-    amat[:, 0] = (g_time.links[:, 1] - g_time.links[:, 0]) * 4 * np.pi / (wvl * 360.0)
+    amat[:, 0] = (
+        (g_time.links[:, 1] - g_time.links[:, 0]) * 4 * np.pi / (wvl * 360.0 * 1000.0)
+    )
     amat[:, 1] = (
         (bperp[g_time.links[:, 1]] - bperp[g_time.links[:, 0]])
         * 4
@@ -51,19 +53,21 @@ def test_grid_estimate():
         matrix=amat, ranges=(vel_range, demerr_range)
     )
 
-    for vel in vels[::2]:
-        for demerr in demerrs[::2]:
+    for vel in vels[5:-5:2]:
+        for demerr in demerrs[5:-5:2]:
+
+            vv = vel + 2 * np.random.randn()
+            dd = demerr + np.random.randn()
             # Estimate the forward model
             fwd = np.exp(
-                1j
-                * (model.fwd_model([vel, demerr]) + 0.01 * np.random.randn(model.nobs))
+                1j * (model.fwd_model([vv, dd]) + 0.01 * np.random.randn(model.nobs))
             )
 
             # Estimat the parameters back
             param, coh = model.estimate_model(np.angle(fwd))
 
-            assert np.abs(vel - param[0]) < 0.01
-            assert np.abs(demerr - param[1]) < 0.1
+            assert np.abs(vv - param[0]) < 15.0
+            assert np.abs(dd - param[1]) < 0.5
             assert coh > 0.99
 
 
@@ -80,6 +84,8 @@ def test_grid_estimate_many():
     )
 
     vv, dd = np.meshgrid(vels, demerrs)
+    vv += 2 * np.random.randn(*vv.shape)
+    dd += np.random.randn(*dd.shape)
     true_model = np.zeros((amat.shape[1], vv.size))
     true_model[0, :] = vv.flatten()
     true_model[1, :] = dd.flatten()
@@ -92,6 +98,6 @@ def test_grid_estimate_many():
     # Estimate the parameters back
     param, coh = model.estimate_model_many(np.angle(fwd))
 
-    assert np.allclose(param[0, :], vv.flatten(), atol=0.01)
-    assert np.allclose(param[1, :], dd.flatten(), atol=0.1)
+    assert np.allclose(param[0, :], true_model[0, :], atol=15.0)
+    assert np.allclose(param[1, :], true_model[1, :], atol=0.5)
     assert np.all(coh > 0.99)
