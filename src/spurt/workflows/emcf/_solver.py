@@ -113,7 +113,6 @@ class EMCFSolver:
             errmsg = "Time must be first dimension in input stack."
             raise NotImplementedError(errmsg)
 
-        input_is_ifg: bool = False
         if wrap_data.data.shape[0] == self.nepochs:
             input_is_ifg = False
         elif wrap_data.data.shape[0] == self.nifgs:
@@ -126,7 +125,9 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self.unwrap_gradients_in_time(wrap_data, input_is_ifg=input_is_ifg)
+        grad_space = self.unwrap_gradients_in_time(
+            wrap_data.data, input_is_ifg=input_is_ifg
+        )
 
         # Then unwrap spatial gradients
         return self.unwrap_gradients_in_space(grad_space)
