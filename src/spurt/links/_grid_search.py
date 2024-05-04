@@ -6,7 +6,7 @@ from multiprocessing import get_context
 import numpy as np
 from scipy import optimize
 
-from ..utils import get_cpu_count
+from ..utils import get_cpu_count, logger
 from ._common import temporal_coherence
 from ._interface import LinkModelInterface
 
@@ -129,7 +129,7 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
                 params[:, ii] = res[0]
                 tcoh[ii] = res[1]
         else:
-            print(f"Modeling batch of {nruns} with {worker_count} threads")
+            logger.info(f"Modeling batch of {nruns} with {worker_count} threads")
 
             def inv_inputs(idxs):
                 for ii in idxs:
