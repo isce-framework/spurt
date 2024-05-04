@@ -8,7 +8,7 @@ from pathlib import Path
 
 @dataclass
 class SolverSettings:
-    """Settings associated with Extended Minimum Cost Flow (EMCF) workflow.
+    """Settings associated with EMCF workflow.
 
     Parameters
     ----------
@@ -43,3 +43,27 @@ class SolverSettings:
         assert self.points_per_batch > 0
         assert self.t_cost_scale > 0
         assert self.s_cost_scale > 0
+
+
+@dataclass
+class GeneralSettings:
+    """Settings associated with breaking data into tiles.
+
+    Parameters
+    ----------
+    use_tiles: bool
+        Tile up data spatially.
+    points_per_tile: int
+        Target number of points per tile.
+    output_folder: str
+        Path to output folder.
+    """
+
+    use_tiles: bool = True
+    points_per_tile: int = 100000
+    output_folder: str = "./emcf"
+
+    def __post_init__(self):
+        p = Path(str)
+        if not p.is_dir():
+            p.mkdir(exist_ok=True)

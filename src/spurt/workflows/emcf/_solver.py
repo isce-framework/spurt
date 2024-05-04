@@ -9,7 +9,7 @@ from spurt.links import LinkModelInterface
 from spurt.mcf import MCFSolverInterface, utils
 from spurt.utils import logger
 
-from ._settings import Settings
+from ._settings import SolverSettings
 
 
 class EMCFSolver:
@@ -33,7 +33,7 @@ class EMCFSolver:
         self,
         solver_space: MCFSolverInterface,
         solver_time: MCFSolverInterface,
-        settings: SolverSettings,
+        settings: SolverSettings | None = None,
         link_model: LinkModelInterface | None = None,
     ):
         """Spatio-temporal unwrapping.
@@ -55,7 +55,7 @@ class EMCFSolver:
         """
         self._solver_space = solver_space
         self._solver_time = solver_time
-        self._settings = settings
+        self._settings = settings if settings else SolverSettings()
         self._link_model = link_model
 
         if link_model is not None:
