@@ -28,7 +28,7 @@ class SolverSettings:
     """
 
     worker_count: int = 0
-    points_per_batch: int = 1000
+    points_per_batch: int = 10000
     t_cost_type: str = "unit"
     t_cost_scale: float = 100.0
     s_cost_type: str = "unit"
@@ -50,17 +50,31 @@ class GeneralSettings:
     ----------
     use_tiles: bool
         Tile up data spatially.
-    points_per_tile: int
-        Target number of points per tile.
     output_folder: str
         Path to output folder.
     """
 
     use_tiles: bool = True
-    points_per_tile: int = 100000
     output_folder: str = "./emcf"
 
     def __post_init__(self):
         p = Path(str)
         if not p.is_dir():
             p.mkdir(exist_ok=True)
+
+
+@dataclass
+class TileSettings:
+    """Class for holding tile generation settings.
+
+    Parameters
+    ----------
+    target_points_per_tile: int
+        Target points per tile when generating tiles.
+    max_tiles: int
+        Maximum number of tiles allowed.
+    """
+
+    max_tiles: int = 16
+    target_points_for_generation: int = 120000
+    target_points_per_tile: int = 800000
