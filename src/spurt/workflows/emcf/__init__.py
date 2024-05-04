@@ -1,7 +1,8 @@
-from ._settings import Settings
+from ._settings import GeneralSettings, SolverSettings
 from ._solver import EMCFSolver as Solver
 
 __all__ = [
     "Solver",
-    "Settings",
+    "GeneralSetings",
+    "SolverSettings",
 ]
