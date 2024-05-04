@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from spurt.io import Irreg3DInput
 from spurt.links import LinkModelInterface
 from spurt.mcf import MCFSolverInterface, utils
 
@@ -79,7 +80,7 @@ class EMCFSolver:
         """Retrieve the link model for the workflow."""
         return self._link_model
 
-    def unwrap_cube(self, wrap_data: np.ndarray) -> np.ndarray:
+    def unwrap_cube(self, wrap_data: Irreg3DInput) -> np.ndarray:
         """Unwrap a 3D cube of data.
 
         Parameters
@@ -96,19 +97,25 @@ class EMCFSolver:
             errmsg = f"Input data is not a 2D array - {wrap_data.ndim}"
             raise ValueError(errmsg)
 
-        if wrap_data.shape[0] == self.nepochs:
+        if wrap_data.time_dim != 0:
+            errmsg = "Time must be first dimension in input stack."
+            raise NotImplementedError(errmsg)
+
+        if wrap_data.data.shape[0] == self.nepochs:
             input_is_ifg = False
-        elif wrap_data.shape[0] == self.nifgs:
+        elif wrap_data.data.shape[0] == self.nifgs:
             input_is_ifg = True
         else:
             errmsg = (
-                f"Input size {wrap_data.shape[0]} does not match solver"
+                f"Input size {wrap_data.data.shape[0]} does not match solver"
                 f" for {self.nifgs} Ifgs from {self.nepochs} images"
             )
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self.unwrap_gradients_in_time(wrap_data, input_is_ifg=input_is_ifg)
+        grad_space = self.unwrap_gradients_in_time(
+            wrap_data.data, input_is_ifg=input_is_ifg
+        )
 
         # Then unwrap spatial gradients
         return self.unwrap_gradients_in_space(grad_space)

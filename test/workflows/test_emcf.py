@@ -62,8 +62,10 @@ def test_emcf():
 
     # Create EMCF solver
     solver = spurt.workflows.emcf.Solver(s_space, s_time)
-
-    uw_data = solver.unwrap_cube(igram.reshape((n_sar, g_space.npoints)))
+    w_data = spurt.io.Irreg3DInput(
+        igram.reshape((n_sar, g_space.npoints)), g_space.points
+    )
+    uw_data = solver.unwrap_cube(w_data)
 
     for ii, edge in enumerate(g_time.links):
         orig = phase[edge[1]] - phase[edge[0]]
@@ -89,7 +91,10 @@ def test_emcf_ramp():
     # Test this setting as well
     solver.settings.worker_count = 1
 
-    uw_data = solver.unwrap_cube(igram.reshape((n_sar, g_space.npoints)))
+    w_data = spurt.io.Irreg3DInput(
+        igram.reshape((n_sar, g_space.npoints)), g_space.points
+    )
+    uw_data = solver.unwrap_cube(w_data)
 
     for ii, edge in enumerate(g_time.links):
         orig = phase[edge[1]] - phase[edge[0]]
@@ -114,7 +119,10 @@ def test_emcf_eq():
     solver = spurt.workflows.emcf.Solver(s_space, s_time)
     # Test this setting as well
 
-    uw_data = solver.unwrap_cube(igram.reshape((n_sar, g_space.npoints)))
+    w_data = spurt.io.Irreg3DInput(
+        igram.reshape((n_sar, g_space.npoints)), g_space.points
+    )
+    uw_data = solver.unwrap_cube(w_data)
 
     for ii, edge in enumerate(g_time.links):
         orig = phase[edge[1]] - phase[edge[0]]

@@ -56,6 +56,10 @@ class Reg3DInput(InputStackInterface):
         self._time_dim = time_dim
 
     @property
+    def data(self) -> ArrayLike:
+        return self._data
+
+    @property
     def dtype(self) -> DTypeLike:
         return self._data.dtype
 
@@ -190,6 +194,10 @@ class Irreg3DInput(InputStackInterface):
         self._data = data
         self._time_dim = time_dim
         self._xy = xy
+
+    @property
+    def data(self) -> ArrayLike:
+        return self._data
 
     @property
     def dtype(self) -> DTypeLike:
