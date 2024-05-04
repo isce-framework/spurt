@@ -159,9 +159,9 @@ class EMCFSolver:
         # Create output array
         grad_space: np.ndarray = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
-        print(f"Temporal: Number of interferograms: {self.nifgs}")
-        print(f"Temporal: Number of links: {self.nlinks}")
-        print(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
+        logger.info(f"Temporal: Number of interferograms: {self.nifgs}")
+        logger.info(f"Temporal: Number of links: {self.nlinks}")
+        logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
         nbatches: int = ((self.nlinks - 1) // self.settings.links_per_batch) + 1
@@ -187,7 +187,7 @@ class EMCFSolver:
                     wrap_data[:, inds[:, 0]], wrap_data[:, inds[:, 1]]
                 )
             else:
-                print(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
+                logger.info(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
                 ifg_inds = self._solver_time.edges
 
                 # Extract SLC data first
@@ -218,7 +218,7 @@ class EMCFSolver:
             residues[:, 0] = -np.sum(residues[:, 1:], axis=1)
 
             # Unwrap the batch
-            print(f"Temporal: Unwrapping batch {bb + 1}/{nbatches}")
+            logger.info(f"Temporal: Unwrapping batch {bb + 1}/{nbatches}")
             flows = self._solver_time.residues_to_flows_many(
                 residues, cost, worker_count=self.settings.worker_count
             )
@@ -253,12 +253,12 @@ class EMCFSolver:
         # Create output array
         uw_data = np.zeros((self.nifgs, self.npoints), dtype=np.float32)
 
-        print(f"Spatial: Number of interferograms: {self.nifgs}")
-        print(f"Spatial: Number of links: {self.nlinks}")
-        print(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
+        logger.info(f"Spatial: Number of interferograms: {self.nifgs}")
+        logger.info(f"Spatial: Number of links: {self.nlinks}")
+        logger.info(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
 
         for ii in range(self.nifgs):
-            print(f"Spatial: Unwrapping {ii + 1} / {self.nifgs}")
+            logger.info(f"Spatial: Unwrapping {ii + 1} / {self.nifgs}")
             # Slice per ifg
             ifg_grad = grad_space[ii, :]
 
