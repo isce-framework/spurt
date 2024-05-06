@@ -102,6 +102,7 @@ class EMCFSolver:
             errmsg = "Time must be first dimension in input stack."
             raise NotImplementedError(errmsg)
 
+        input_is_ifg: bool = False
         if wrap_data.data.shape[0] == self.nepochs:
             input_is_ifg = False
         elif wrap_data.data.shape[0] == self.nifgs:
@@ -114,7 +115,7 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self.unwrap_gradients_in_time(
+        grad_space: np.ndarray = self.unwrap_gradients_in_time(
             wrap_data.data, input_is_ifg=input_is_ifg
         )
 
@@ -146,14 +147,14 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # Create output array
-        grad_space = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
+        grad_space: np.ndarray = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
         logger.info(f"Temporal: Number of interferograms: {self.nifgs}")
         logger.info(f"Temporal: Number of links: {self.nlinks}")
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
-        nbatches = (self.nlinks // self.settings.points_per_batch) + 1
+        nbatches: int = (self.nlinks // self.settings.points_per_batch) + 1
 
         # Iterate over batches
         for bb in range(nbatches):
@@ -203,8 +204,10 @@ class EMCFSolver:
 
             # Compute residues for each cycle in temporal graph
             # Easier to loop over interferograms here
-            ncycles = len(self._solver_time.cycles)
-            grad_sum = np.zeros((links_in_batch, ncycles + 1), dtype=np.float32)
+            ncycles: int = len(self._solver_time.cycles)
+            grad_sum: np.ndarray = np.zeros(
+                (links_in_batch, ncycles + 1), dtype=np.float32
+            )
             for ii in range(self.nifgs):
                 # Cycles that ifg contributes to
                 cyc = np.abs(self._solver_time.dual_edges[ii])
