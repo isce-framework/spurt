@@ -113,6 +113,7 @@ class EMCFSolver:
             errmsg = "Time must be first dimension in input stack."
             raise NotImplementedError(errmsg)
 
+        input_is_ifg: bool = False
         if wrap_data.data.shape[0] == self.nepochs:
             input_is_ifg = False
         elif wrap_data.data.shape[0] == self.nifgs:
@@ -125,7 +126,7 @@ class EMCFSolver:
             raise ValueError(errmsg)
 
         # First unwrap in time to get spatial gradients
-        grad_space = self.unwrap_gradients_in_time(
+        grad_space: np.ndarray = self.unwrap_gradients_in_time(
             wrap_data.data, input_is_ifg=input_is_ifg
         )
 
@@ -164,7 +165,7 @@ class EMCFSolver:
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
-        nbatches: int = ((self.nlinks - 1) // self.settings.links_per_batch) + 1
+        nbatches: int = (self.nlinks // self.settings.points_per_batch) + 1
 
         # Iterate over batches
         for bb in range(nbatches):
