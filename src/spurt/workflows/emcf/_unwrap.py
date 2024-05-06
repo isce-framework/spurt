@@ -14,20 +14,27 @@ logger = spurt.utils.logger
 
 def unwrap_tiles(
     stack: spurt.io.SLCStackReader,
-    g_time: spurt.graph.PlanarGraphInterface,
     gen_settings: GeneralSettings,
     solv_settings: SolverSettings,
 ) -> None:
     """Unwrap each tile and save to h5."""
+    # I/O files
+    pdir = Path(gen_settings.output_folder)
+    json_name = pdir / "tiles.json"
+    tile_file_tmpl = str(pdir / "uw_tile_{}.h5")
+
     # Temporal graph
+    # TODO: Generalize later to a generic graph
+    n_sar = len(stack.slc_files)
+    g_time = spurt.graph.Hop3Graph(n_sar)
     s_time = spurt.mcf.ORMCFSolver(g_time)  # type: ignore[abstract]
 
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
+    with json_name.open(mode="r") as fid:
         tiledata = json.load(fid)
 
     # Iterate over tiles
     for tt in range(len(tiledata["tiles"])):
-        tfname = str(gen_settings.tile_filename(tt))
+        tfname = tile_file_tmpl.format(f"{tt + 1:02d}")
         if Path(tfname).is_file():
             logger.info(f"Tile {tt+1} already processed. Skipping...")
             continue
@@ -44,7 +51,7 @@ def unwrap_tiles(
         s_space = spurt.mcf.ORMCFSolver(g_space)  # type: ignore[abstract]
 
         # EMCF solver
-        solver = EMCFSolver(s_space, s_time, solv_settings)
+        solver = EMCFSolver(s_space, s_time, settings=solv_settings)
         wrap_data = stack.read_tile(space)
         assert wrap_data.shape[1] == g_space.npoints
         logger.info(f"Time steps: {solver.nifgs}")
@@ -53,34 +60,19 @@ def unwrap_tiles(
         uw_data = solver.unwrap_cube(wrap_data.data)
         logger.info(f"Completed tile: {tt+1}")
 
-        # Unwrapped data above is always referenced to first pixel
-        # since we unwrap gradients. Phase offsets for the first
-        # pixel are computed and provided separately. When mosaicking,
-        # these offsets need to be added to unwrapped tiles to guarantee
-        # integer cycle shifts between tiles.
-        ifgs = g_time.links
-        phase_offset = spurt.mcf.utils.phase_diff(
-            wrap_data.data[ifgs[0, :], 0], wrap_data.data[ifgs[1, :], 0]
-        )
-
-        _dump_tile_to_h5(tfname, uw_data, phase_offset, g_space, tiledata["tiles"][tt])
+        _dump_tile_to_h5(tfname, uw_data, g_space, tiledata["tiles"][tt])
         logger.info(f"Wrote tile {tt + 1} to {tfname}")
         wrap_data = None
         uw_data = None
 
 
 def _dump_tile_to_h5(
-    fname: str,
-    uw: np.ndarray,
-    off: np.ndarray,
-    gspace: spurt.graph.PlanarGraphInterface,
-    tile: dict,
+    fname: str, uw: np.ndarray, gspace: spurt.graph.PlanarGraphInterface, tile: dict
 ) -> None:
     with h5py.File(fname, "w") as fid:
         fid["uw_data"] = uw
         fid["points"] = gspace.points
         fid["tile"] = np.array(tile["bounds"]).astype(np.int32)
-        fid["phase_offset"] = off.astype(np.float32)
 
 
 def _bounds_to_space(bounds):
