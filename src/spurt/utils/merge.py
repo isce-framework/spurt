@@ -62,7 +62,7 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
         errmsg = f"Expecting 2D array as input - received {b1.shape}"
         raise ValueError(errmsg)
 
-    if b1.shape[1] != 11:
+    if b1.shape[1] < 11:
         errmsg = f"Need atleast 11 elements per band - received {b1.shape}"
         raise ValueError(errmsg)
 
@@ -77,13 +77,14 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
     assert np.allclose(diff, nint, atol=0.01), "Arrays differ by non-integer cycles"
 
     # Indices into a sorted array
-    inds = (np.linspace(0, 100, 11) * b1.shape[1]).astype(np.int)
+    inds = (np.linspace(0, 1.0, 11) * b1.shape[1]).astype(int)
+    inds = np.clip(inds, 0, b1.shape[1] - 1)
 
     # Sort the differences
     diff = np.sort(nint, axis=-1)
 
     # Return histogram
-    return diff[:, inds]
+    return diff[:, inds].copy()
 
 
 def l2_min(
