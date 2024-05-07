@@ -64,7 +64,7 @@ class GeneralSettings:
 
 
 @dataclass
-class TileSettings:
+class TilerSettings:
     """Class for holding tile generation settings.
 
     Parameters
@@ -78,3 +78,17 @@ class TileSettings:
     max_tiles: int = 16
     target_points_for_generation: int = 120000
     target_points_per_tile: int = 800000
+
+
+@dataclass
+class MergerSettings:
+    """Class for holding tile merging settings.
+
+    Parameters
+    ----------
+    min_overlap_points: int
+    method: str
+    """
+
+    min_overlap_points: int = 25
+    method: str = "laplacian"
