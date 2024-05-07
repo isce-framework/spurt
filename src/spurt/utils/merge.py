@@ -4,7 +4,9 @@ from typing import Any
 
 import numpy as np
 from numpy.linalg import lstsq as lsq_dense
+from numpy.linalg import norm as lpnorm
 from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import LinearOperator, cg, spilu
 from scipy.sparse.linalg import lsqr as lsq_sparse
 
 
@@ -119,3 +121,132 @@ def l2_min(
         x = lsq_sparse(amat, b)[0]
 
     return x, b - np.dot(amat, x)
+
+
+def l2_min_cg(
+    amat: np.ndarray | csr_matrix,
+    b: np.ndarray,
+    logger: Any | None = None,
+    x0: np.ndarray | None = None,
+    maxiter: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, Any]:
+    """L2 minimization.
+
+    Find x so that Ax-b has least L2 norm. Use CG when A == A.T, otherwise
+    use CG to solve the normal equations, ie, use CG to solve A.T A x - A.T b.
+
+    Note that if A == A.T, this method will assume A is positive definite,
+    but will not verify that this condition is holds. If A is not positive definiite,
+
+    Note also that if A is rank deficient, there is a subspace of solutions, and
+
+    Parameters
+    ----------
+    A : matrix-like
+        Sparse real system to solve.
+    b : vector-like
+        Right-hand side.
+    logger : logger-like
+        Optional, logger to which diagnostic messages will be sent.
+    x0 : vector-like
+        Optional, initial guess
+    max_iters : integer
+        Optional, maximum number of iterations
+
+    Returns
+    -------
+    x : array
+        L2 minimizer of Ax - b
+    r : array
+        Ax - b
+    P : scipy.sparse.linalg.SuperLU
+        Preconditioner for the trans(A)A
+    """
+    assert amat.shape[0] == b.shape[0]
+
+    if np.size(amat) == 0:
+        if logger:
+            logger.warning("A is empty; returning all zeros")
+        return np.zeros(amat.shape[1]), np.zeros(amat.shape[0]), None
+
+    if np.all(b == 0):
+        if logger:
+            logger.info("b is identically zero, returning zero")
+        return np.zeros(amat.shape[1]), np.zeros(amat.shape[0]), None
+
+    # If symmetric
+    if (
+        amat.shape[0] == amat.shape[1]
+        and np.max(np.abs(amat - np.transpose(amat))) == 0
+    ):
+        use_normal_eqs: bool = False
+        mat: np.ndarray = amat.copy()
+        rhs: np.ndarray = b
+    else:
+        use_normal_eqs = True
+        mat = np.dot(np.transpose(amat), amat)
+        rhs = np.dot(np.transpose(amat), b)
+
+    # Pre-conditioner
+    pre = spilu(mat, fill_factor=100)
+
+    def pre_apply(xx):
+        return pre.solve(xx)
+
+    premat = LinearOperator(mat.shape, lambda ww: pre_apply(np.dot(mat, ww)))
+
+    count = 0
+
+    def cb(*_):
+        nonlocal count
+        count = count + 1
+
+    x, info = cg(
+        premat,
+        pre_apply(rhs),
+        tol=1e-4,
+        atol=1e-4,
+        x0=x0,
+        maxiter=maxiter,
+        callback=cb,
+    )
+
+    if info < 0 and logger is not None:
+        logger.error("Something bad happened with CG!")
+        return x0, None, pre
+
+    r: np.ndarray = b - np.dot(amat, x)
+
+    # Compute the residual of the normal equations. That is compute
+    # A.T b - A.T A x, where x is our solution and b is the rhs.
+    #
+    # Note that the original system A x - b may not have a solution, while
+    # the normal equations always have at least one. From this there are two
+    # reasons we may not have solved the system, 1, there is not solution, 2,
+    # CG performed badly.
+    #
+    # Since the normal equations always have a solution, and since the residual
+    # of the normal equations is zero only for solutions of the normal equations,
+    # the normal residual (computed below) allows the caller to distinguish between
+    # 1 and 2 above.
+    rn = rhs - np.dot(mat, x) if use_normal_eqs else None
+
+    if logger is not None:
+        if maxiter is not None:
+            logger.info(
+                f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}, "
+                f"CG num iters/max iters {count/maxiter}"
+            )
+            if use_normal_eqs:
+                logger.info(
+                    "Relative size of residual of normal eqs"
+                    f" {lpnorm(rn, 2) / lpnorm(rhs, 2)}, "
+                )
+        else:
+            logger.info(f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}")
+            logger.info(
+                "Relative size of residual of normal eqs"
+                f" {lpnorm(rn, 2) / lpnorm(rhs, 2)}, "
+            )
+
+    return x, r, pre
