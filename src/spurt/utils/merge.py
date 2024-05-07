@@ -1,6 +1,11 @@
 """Utilities for merging point clouds."""
 
+from typing import Any
+
 import numpy as np
+from numpy.linalg import lstsq as lsq_dense
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import lsqr as lsq_sparse
 
 
 def find_common_points(c1: np.ndarray, c2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -77,3 +82,40 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
 
     # Return histogram
     return diff[:, inds]
+
+
+def l2_min(
+    amat: np.ndarray | csr_matrix, b: np.ndarray, logger: Any | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Find x so that Ax-b has least L2 norm.
+
+    Parameters
+    ----------
+    amat : matrix-like
+        System to solve. This can be a dense or sparse matrix.
+    b : vector-like
+        Right-hand side.
+    logger : logger-like
+        Optional, Logger to which diagnostic messages will be sent.
+
+    Returns
+    -------
+    x : array
+        L2 minimizer of Ax - b
+    r : array
+        Ax - b
+    """
+    if np.size(amat) == 0:
+        if logger:
+            logger.warning("A is empty; returning all zeros")
+        return np.zeros(amat.shape[1]), np.zeros(amat.shape[0])
+
+    assert amat.shape[0] == b.shape[0]
+
+    if isinstance(amat, np.ndarray):
+        x: np.ndarray = lsq_dense(amat, b, rcond=None)[0]
+    else:
+        x = lsq_sparse(amat, b)[0]
+
+    return x, b - np.dot(amat, x)
