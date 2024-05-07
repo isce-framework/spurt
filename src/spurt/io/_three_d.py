@@ -119,21 +119,23 @@ class Reg3DInput(InputStackInterface):
 
         Only makes a copy if absolutely needed.
         """
-        ind = tuple(
-            slice(None) if ii != self._time_dim else int(key)
+        ind: slice | tuple[slice, ...] = tuple(
+            slice(None) if ii != self._time_dim else slice(key, key + 1)
             for ii in range(self._data.ndim)
         )
-        return self._data[ind].ravel()  # type: ignore[arg-type, index]
+        return np.ravel(self._data[ind])
 
     def get_spatial_slice(self, key: int) -> ArrayLike:
         """Read a block of data in space.
 
         Only makes a copy if absolutely needed.
         """
-        ind = list(np.unravel_index(key, self._space_shape))
+        ind: list[slice] = [
+            slice(x, x + 1) for x in np.unravel_index(key, self._space_shape)
+        ]
         ind.insert(self._time_dim, slice(None))
 
-        return self._data[tuple(ind)].ravel()  # type: ignore[arg-type, index]
+        return np.ravel(self._data[tuple(ind)])
 
 
 class Irreg3DInput(InputStackInterface):
@@ -247,11 +249,11 @@ class Irreg3DInput(InputStackInterface):
         key: int
             Index on the time axis
         """
-        ind = tuple(
-            slice(None) if ii != self._time_dim else key
+        ind: tuple[slice, ...] = tuple(
+            slice(None) if ii != self._time_dim else slice(key, key + 1)
             for ii in range(self._data.ndim)
         )
-        return self._data[ind].ravel()  # type: ignore[arg-type, index]
+        return np.ravel(self._data[ind])
 
     def get_spatial_slice(self, key: int) -> ArrayLike:
         """Read a block of data in space.
@@ -263,8 +265,8 @@ class Irreg3DInput(InputStackInterface):
         key: int
             Index on the space axis
         """
-        ind = tuple(
-            slice(None) if ii != self.space_dim else key
+        ind: tuple[slice, ...] = tuple(
+            slice(None) if ii != self.space_dim else slice(key, key + 1)
             for ii in range(self._data.ndim)
         )
-        return self._data[ind].ravel()  # type: ignore[arg-type, index]
+        return np.ravel(self._data[ind])
