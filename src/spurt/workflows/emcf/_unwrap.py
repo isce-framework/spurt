@@ -60,19 +60,34 @@ def unwrap_tiles(
         uw_data = solver.unwrap_cube(wrap_data.data)
         logger.info(f"Completed tile: {tt+1}")
 
-        _dump_tile_to_h5(tfname, uw_data, g_space, tiledata["tiles"][tt])
+        # Unwrapped data above is always referenced to first pixel
+        # since we unwrap gradients. Phase offsets for the first
+        # pixel are computed and provided separately. When mosaicking,
+        # these offsets need to be added to unwrapped tiles to guarantee
+        # integer cycle shifts between tiles.
+        ifgs = g_time.links
+        phase_offset = spurt.mcf.utils.phase_diff(
+            wrap_data.data[ifgs[0, :], 0], wrap_data.data[ifgs[1, :], 0]
+        )
+
+        _dump_tile_to_h5(tfname, uw_data, phase_offset, g_space, tiledata["tiles"][tt])
         logger.info(f"Wrote tile {tt + 1} to {tfname}")
         wrap_data = None
         uw_data = None
 
 
 def _dump_tile_to_h5(
-    fname: str, uw: np.ndarray, gspace: spurt.graph.PlanarGraphInterface, tile: dict
+    fname: str,
+    uw: np.ndarray,
+    off: np.ndarray,
+    gspace: spurt.graph.PlanarGraphInterface,
+    tile: dict,
 ) -> None:
     with h5py.File(fname, "w") as fid:
         fid["uw_data"] = uw
         fid["points"] = gspace.points
         fid["tile"] = np.array(tile["bounds"]).astype(np.int32)
+        fid["phase_offset"] = off.astype(np.float32)
 
 
 def _bounds_to_space(bounds):
