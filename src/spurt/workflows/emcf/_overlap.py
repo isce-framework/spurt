@@ -1,9 +1,8 @@
 import json
+from pathlib import Path
 
 import h5py
 import numpy as np
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import connected_components
 
 import spurt
 
@@ -14,42 +13,41 @@ logger = spurt.utils.logger
 
 def compute_overlap_stats(
     gen_settings: GeneralSettings,
-    mrg_settings: MergerSettings,
+    mrg_settings: MergerSettings | None = None,
 ) -> None:
     """Compute overlap stats and save to h5."""
-    # Check if already processed
-    if gen_settings.overlap_filename.is_file():
-        logger.info("Overlap file already exists. Skipping ...")
+    if mrg_settings is None:
+        mrg_settings = MergerSettings()
+
+    # I/O files
+    pdir = Path(gen_settings.output_folder)
+    json_name = pdir / "tiles.json"
+    tile_file_tmpl = str(pdir / "uw_tile_{}.h5")
+    overlap_file = pdir / "overlaps.h5"
+
+    if overlap_file.is_file():
+        logger.info(f"{overlap_file!s} already exists. Skipping ...")
         return
 
     # Load tile info
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
+    with json_name.open(mode="r") as fid:
         tiledata = json.load(fid)
-
-    # If single tile json - just return
-    if len(tiledata["tiles"]) == 1:
-        logger.info("Single tile used. Skipping overlaps ...")
-        return
 
     t1 = -1
     t2 = -1
-    ntiles = len(tiledata["tiles"])
-    conn_mat = np.zeros((ntiles, ntiles))
-    overlaps = []
-    overlap_file: str = str(gen_settings.overlap_filename)
     for pair in tiledata["neighbors"]:
         logger.info(f"Processing neighboring pair: {pair}")
         if pair[0] != t1:
             t1 = pair[0]
             bnds1 = tiledata["tiles"][t1]["bounds"]
-            pt1, uw1 = _load_uw_tile(str(gen_settings.tile_filename(t1)), bnds1)
+            pt1, uw1 = _load_uw_tile(tile_file_tmpl.format(f"{t1 + 1:02d}"), bnds1)
             pt1[:, 0] += bnds1[0]
             pt1[:, 1] += bnds1[1]
 
         if pair[1] != t2:
             t2 = pair[1]
             bnds2 = tiledata["tiles"][t2]["bounds"]
-            pt2, uw2 = _load_uw_tile(str(gen_settings.tile_filename(t2)), bnds2)
+            pt2, uw2 = _load_uw_tile(tile_file_tmpl.format(f"{t2 + 1:02d}"), bnds2)
 
         # Find common points
         c1, c2 = spurt.utils.merge.find_common_points(pt1, pt2)
@@ -58,33 +56,16 @@ def compute_overlap_stats(
             logger.info("Insufficient overlap. Skipping ...")
             continue
 
-        # Track overlaps
-        overlaps.append([t1, t2])
-        conn_mat[t1, t2] = 1
-
         # difference stats
         cuw1 = uw1[:, c1]
         cuw2 = uw2[:, c2]
         stats = spurt.utils.merge.pairwise_unwrapped_diff(cuw1, cuw2)
-        grpname = gen_settings.overlap_groupname(t1, t2)
+        grpname = f"{t1:02d}_{t2:02d}"
         with h5py.File(overlap_file, "a") as fid:
             grp = fid.create_group(grpname)
             grp["c1"] = c1.astype(np.int16)
             grp["c2"] = c2.astype(np.int16)
             grp["stats"] = stats.astype(np.int16)
-
-    # Identify connected components
-    graph = csr_matrix(conn_mat)
-    n_components, labels = connected_components(
-        csgraph=graph, directed=False, return_labels=True
-    )
-
-    logger.info(f"Number of connected components: {n_components}")
-
-    # Add list of overlaps at the end
-    with h5py.File(overlap_file, "a") as fid:
-        fid["conn_comp"] = labels
-        fid["overlaps"] = np.array(overlaps, dtype=np.int16)
 
 
 def _load_uw_tile(fname: str, bnds: list[int]) -> tuple[np.ndarray, np.ndarray]:
