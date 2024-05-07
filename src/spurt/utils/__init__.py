@@ -6,6 +6,7 @@ from ._tiling import DensityTiler, RegularTiler, TilerInterface
 __all__ = [
     "get_cpu_count",
     "logger",
+    "merge",
     "TilerInterface",
     "RegularTiler",
     "DensityTiler",
