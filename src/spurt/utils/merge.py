@@ -55,6 +55,10 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
         errmsg = f"Expecting 2D array as input - received {b1.shape}"
         raise ValueError(errmsg)
 
+    if b1.shape[1] != 11:
+        errmsg = f"Need atleast 11 elements per band - received {b1.shape}"
+        raise ValueError(errmsg)
+
     # Compute difference
     diff: np.ndarray = np.zeros(b1.shape, dtype=np.float32)
 
