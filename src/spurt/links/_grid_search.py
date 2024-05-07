@@ -123,9 +123,7 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
         # Run sequentially when only 1 worker available
         if worker_count == 1:
             for ii in range(nruns):
-                wts: np.ndarray | float = (
-                    weights if const_weights else arr_weights[:, ii]
-                )
+                wts = weights if const_weights else arr_weights[:, ii]
                 res = self.estimate_model(
                     wrapdata[:, ii],
                     wts,
@@ -137,9 +135,7 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
 
             def inv_inputs(idxs):
                 for ii in idxs:
-                    wts: np.ndarray | float = (
-                        weights if const_weights else arr_weights[:, ii]
-                    )
+                    wts = weights if const_weights else arr_weights[:, ii]
                     yield (
                         ii,
                         self.matrix,
