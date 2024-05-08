@@ -3,6 +3,8 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 import spurt
 
@@ -35,6 +37,9 @@ def compute_overlap_stats(
 
     t1 = -1
     t2 = -1
+    ntiles = len(tiledata["tiles"])
+    conn_mat = np.zeros((ntiles, ntiles))
+    overlaps = []
     for pair in tiledata["neighbors"]:
         logger.info(f"Processing neighboring pair: {pair}")
         if pair[0] != t1:
@@ -56,6 +61,10 @@ def compute_overlap_stats(
             logger.info("Insufficient overlap. Skipping ...")
             continue
 
+        # Track overlaps
+        overlaps.append([t1, t2])
+        conn_mat[t1, t2] = 1
+
         # difference stats
         cuw1 = uw1[:, c1]
         cuw2 = uw2[:, c2]
@@ -66,6 +75,19 @@ def compute_overlap_stats(
             grp["c1"] = c1.astype(np.int16)
             grp["c2"] = c2.astype(np.int16)
             grp["stats"] = stats.astype(np.int16)
+
+    # Identify connected components
+    graph = csr_matrix(conn_mat)
+    n_components, labels = connected_components(
+        csgraph=graph, directed=False, return_labels=True
+    )
+
+    logger.info(f"Number of connected components: {n_components}")
+
+    # Add list of overlaps at the end
+    with h5py.File(overlap_file, "a") as fid:
+        fid["conn_comp"] = labels
+        fid["overlaps"] = np.array(overlaps, dtype=np.int16)
 
 
 def _load_uw_tile(fname: str, bnds: list[int]) -> tuple[np.ndarray, np.ndarray]:
