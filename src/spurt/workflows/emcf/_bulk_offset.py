@@ -68,9 +68,15 @@ def get_bulk_offsets(
         # These can be floating point
         bulk_offset = np.zeros((nbands, ntiles))
         obj = np.zeros(nbands)
-        for ii in range(nbands):
-            off = np.array([x[ii] for x in offsets])
-            bulk_offset[ii, :], obj[ii] = _solve_l2_min(overlaps, off, ntiles)
+        off = np.zeros((len(overlaps), nbands))
+        for ii in range(len(overlaps)):
+            off[ii, :] = offsets[ii]
+
+        bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles)
+
+    else:
+        errmsg = f"Unsupported bulk offset method {mrg_settings.bulk_method}"
+        raise RuntimeError(errmsg)
 
     # Write HDF5 file with bulk offsets
     with h5py.File(offsets_file, "w") as fid:
@@ -93,7 +99,7 @@ def _solve_l2_min(
         cmat[ind, jj] = 1
 
     results: tuple[np.ndarray, np.ndarray] = spurt.utils.merge.l2_min(cmat, off)
-    return results[0], np.sum(np.abs(results[1]))
+    return results[0], np.sum(np.abs(results[1]), axis=0)
 
 
 def _solve_int_offsets(

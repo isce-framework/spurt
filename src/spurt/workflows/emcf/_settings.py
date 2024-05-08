@@ -92,7 +92,7 @@ class MergerSettings:
 
     min_overlap_points: int = 25
     method: str = "laplacian"
-    bulk_method: str = "integer"
+    bulk_method: str = "L2"
 
     def __post_init__(self):
         assert self.bulk_method in ["integer", "L2"]
