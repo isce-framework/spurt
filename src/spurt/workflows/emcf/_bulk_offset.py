@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -14,33 +15,31 @@ logger = spurt.utils.logger
 
 def get_bulk_offsets(
     gen_settings: GeneralSettings,
-    mrg_settings: MergerSettings,
+    mrg_settings: MergerSettings | None = None,
 ) -> None:
 
-    # Check if offsets already computed
-    if gen_settings.offsets_filename.is_file():
-        logger.info("Offsets file already exists. Skipping ...")
-        return
+    if mrg_settings is None:
+        mrg_settings = MergerSettings()
+
+    # I/O files
+    pdir = Path(gen_settings.output_folder)
+    json_name = pdir / "tiles.json"
+    overlap_file = pdir / "overlaps.h5"
+    offsets_file = pdir / "bulk_offsets.h5"
 
     # Load tile info
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
+    with json_name.open(mode="r") as fid:
         tiledata = json.load(fid)
-
-    # Single tile processing
-    if len(tiledata["tiles"]) == 1:
-        logger.info("Single tile used. Skipping bulk offsets ...")
-        return
 
     # Load offset data for inversion
     offsets = []
     olap_counts = []
-    overlap_file = str(gen_settings.overlap_filename)
     with h5py.File(str(overlap_file), "r") as fid:
         labels: np.ndarray = fid["conn_comp"][...]
         overlaps: np.ndarray = fid["overlaps"][...]
         for pair in overlaps:
             t1, t2 = pair
-            grp_name = gen_settings.overlap_groupname(t1, t2)
+            grp_name = f"{t1:02d}_{t2:02d}"
             grp = fid[grp_name]
 
             # Just use the median for now
@@ -53,7 +52,6 @@ def get_bulk_offsets(
     counts = np.array([x["count"] for x in tiledata["tiles"]])
 
     # If integer solver requested
-    logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")
     if mrg_settings.bulk_method == "integer":
         bulk_offset: np.ndarray = np.zeros((nbands, ntiles), dtype=np.int32)
         obj: np.ndarray = np.zeros(nbands, dtype=np.int32)
@@ -70,25 +68,19 @@ def get_bulk_offsets(
         # These can be floating point
         bulk_offset = np.zeros((nbands, ntiles))
         obj = np.zeros(nbands)
-        off = np.zeros((len(overlaps), nbands))
-        for ii in range(len(overlaps)):
-            off[ii, :] = offsets[ii]
-
-        bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles, counts)
-
-    else:
-        errmsg = f"Unsupported bulk offset method {mrg_settings.bulk_method}"
-        raise RuntimeError(errmsg)
+        for ii in range(nbands):
+            off = np.array([x[ii] for x in offsets])
+            bulk_offset[ii, :], obj[ii] = _solve_l2_min(overlaps, off, ntiles)
 
     # Write HDF5 file with bulk offsets
-    with h5py.File(str(gen_settings.offsets_filename), "w") as fid:
+    with h5py.File(offsets_file, "w") as fid:
         grp = fid.create_group(mrg_settings.bulk_method)
         grp["offsets"] = bulk_offset
-        grp["residues"] = obj
+        grp["flows"] = obj
 
 
 def _solve_l2_min(
-    olaps: ArrayLike, off: ArrayLike, ntiles: int, counts: ArrayLike
+    olaps: ArrayLike, off: ArrayLike, ntiles: int
 ) -> tuple[np.ndarray, float]:
     """Return minimum L2 solution."""
     nlinks: int = len(olaps)
@@ -101,13 +93,7 @@ def _solve_l2_min(
         cmat[ind, jj] = 1
 
     results: tuple[np.ndarray, np.ndarray] = spurt.utils.merge.l2_min(cmat, off)
-
-    # Set largest component to zero
-    connnum = np.argmax(counts)
-    logger.info(f"Largest tile by count: {connnum}")
-    offset: np.ndarray = results[0] - results[0][connnum, :]
-
-    return np.transpose(offset), np.sum(np.abs(results[1]), axis=0)
+    return results[0], np.sum(np.abs(results[1]))
 
 
 def _solve_int_offsets(
