@@ -52,6 +52,7 @@ def get_bulk_offsets(
     counts = np.array([x["count"] for x in tiledata["tiles"]])
 
     # If integer solver requested
+    logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")
     if mrg_settings.bulk_method == "integer":
         bulk_offset: np.ndarray = np.zeros((nbands, ntiles), dtype=np.int32)
         obj: np.ndarray = np.zeros(nbands, dtype=np.int32)
@@ -82,7 +83,7 @@ def get_bulk_offsets(
     with h5py.File(offsets_file, "w") as fid:
         grp = fid.create_group(mrg_settings.bulk_method)
         grp["offsets"] = bulk_offset
-        grp["flows"] = obj
+        grp["residues"] = obj
 
 
 def _solve_l2_min(
@@ -99,7 +100,7 @@ def _solve_l2_min(
         cmat[ind, jj] = 1
 
     results: tuple[np.ndarray, np.ndarray] = spurt.utils.merge.l2_min(cmat, off)
-    return results[0], np.sum(np.abs(results[1]), axis=0)
+    return np.transpose(results[0]), np.sum(np.abs(results[1]), axis=0)
 
 
 def _solve_int_offsets(
