@@ -78,7 +78,7 @@ class GeneralSettings:
         return Path(self.intermediate_folder) / "bulk_offsets.h5"
 
     def unw_filename(self, d1: str, d2: str) -> Path:
-        return Path(self.output_folder) / f"{d1}_{d2}.unw"
+        return Path(self.output_folder) / f"{d1}_{d2}.unw.tif"
 
     def __post_init__(self):
         p = Path(self.output_folder)
