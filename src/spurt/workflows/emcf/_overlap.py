@@ -35,6 +35,11 @@ def compute_overlap_stats(
     with json_name.open(mode="r") as fid:
         tiledata = json.load(fid)
 
+    # If single tile json - just return
+    if len(tiledata["tiles"]) == 1:
+        logger.info("Single tile used. Skipping overlaps ...")
+        return
+
     t1 = -1
     t2 = -1
     ntiles = len(tiledata["tiles"])
