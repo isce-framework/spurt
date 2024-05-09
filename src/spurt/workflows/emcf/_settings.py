@@ -58,10 +58,37 @@ class GeneralSettings:
     """
 
     use_tiles: bool = True
+    intermediate_folder: str = "./emcf_tmp"
     output_folder: str = "./emcf"
 
+    @property
+    def tiles_jsonname(self) -> Path:
+        return Path(self.intermediate_folder) / "tiles.json"
+
+    def tile_filename(self, num: int) -> Path:
+        """Input index is zero-based."""
+        return Path(self.intermediate_folder) / f"uw_tile_{num:02d}.h5"
+
+    @property
+    def overlap_filename(self) -> Path:
+        return Path(self.intermediate_folder) / "overlaps.h5"
+
+    def overlap_groupname(self, ii: int, jj: int) -> str:
+        return f"{ii:02d}_{jj:02d}"
+
+    @property
+    def offsets_filename(self) -> Path:
+        return Path(self.intermediate_folder) / "bulk_offsets.h5"
+
+    def unw_filename(self, d1: str, d2: str) -> Path:
+        return Path(self.output_folder) / f"{d1}_{d2}.unw"
+
     def __post_init__(self):
-        p = Path(str)
+        p = Path(self.output_folder)
+        if not p.is_dir():
+            p.mkdir(exist_ok=True)
+
+        p = Path(self.intermediate_folder)
         if not p.is_dir():
             p.mkdir(exist_ok=True)
 
@@ -90,13 +117,18 @@ class MergerSettings:
     Parameters
     ----------
     min_overlap_points: int
+        Minimum number of pixels in overlap region for it to be considered
+        valid.
     method: str
+        Currently, only "dirichlet" is supported.
+    bulk_method: str
+        Method used to estimate bulk offset between tiles.
     """
 
     min_overlap_points: int = 25
-    method: str = "laplacian"
+    method: str = "dirichlet"
     bulk_method: str = "L2"
 
     def __post_init__(self):
         assert self.bulk_method in ["integer", "L2"]
-        assert self.method == "laplacian"
+        assert self.method == "dirichlet"

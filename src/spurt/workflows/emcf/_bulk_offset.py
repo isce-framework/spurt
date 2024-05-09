@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import h5py
 import numpy as np
@@ -21,19 +20,13 @@ def get_bulk_offsets(
     if mrg_settings is None:
         mrg_settings = MergerSettings()
 
-    # I/O files
-    pdir = Path(gen_settings.output_folder)
-    json_name = pdir / "tiles.json"
-    overlap_file = pdir / "overlaps.h5"
-    offsets_file = pdir / "bulk_offsets.h5"
-
     # Check if offsets already computed
-    if offsets_file.is_file():
+    if gen_settings.offsets_filename.is_file():
         logger.info("Offsets file already exists. Skipping ...")
         return
 
     # Load tile info
-    with json_name.open(mode="r") as fid:
+    with gen_settings.tiles_jsonname.open(mode="r") as fid:
         tiledata = json.load(fid)
 
     # Single tile processing
@@ -44,12 +37,13 @@ def get_bulk_offsets(
     # Load offset data for inversion
     offsets = []
     olap_counts = []
+    overlap_file = str(gen_settings.overlap_filename)
     with h5py.File(str(overlap_file), "r") as fid:
         labels: np.ndarray = fid["conn_comp"][...]
         overlaps: np.ndarray = fid["overlaps"][...]
         for pair in overlaps:
             t1, t2 = pair
-            grp_name = f"{t1:02d}_{t2:02d}"
+            grp_name = gen_settings.overlap_groupname(t1, t2)
             grp = fid[grp_name]
 
             # Just use the median for now
@@ -90,7 +84,7 @@ def get_bulk_offsets(
         raise RuntimeError(errmsg)
 
     # Write HDF5 file with bulk offsets
-    with h5py.File(offsets_file, "w") as fid:
+    with h5py.File(str(gen_settings.offsets_filename), "w") as fid:
         grp = fid.create_group(mrg_settings.bulk_method)
         grp["offsets"] = bulk_offset
         grp["residues"] = obj
