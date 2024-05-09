@@ -74,7 +74,7 @@ def get_bulk_offsets(
         for ii in range(len(overlaps)):
             off[ii, :] = offsets[ii]
 
-        bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles)
+        bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles, counts)
 
     else:
         errmsg = f"Unsupported bulk offset method {mrg_settings.bulk_method}"
@@ -88,7 +88,7 @@ def get_bulk_offsets(
 
 
 def _solve_l2_min(
-    olaps: ArrayLike, off: ArrayLike, ntiles: int
+    olaps: ArrayLike, off: ArrayLike, ntiles: int, counts: ArrayLike
 ) -> tuple[np.ndarray, float]:
     """Return minimum L2 solution."""
     nlinks: int = len(olaps)
@@ -101,7 +101,13 @@ def _solve_l2_min(
         cmat[ind, jj] = 1
 
     results: tuple[np.ndarray, np.ndarray] = spurt.utils.merge.l2_min(cmat, off)
-    return np.transpose(results[0]), np.sum(np.abs(results[1]), axis=0)
+
+    # Set largest component to zero
+    connnum = np.argmax(counts)
+    logger.info(f"Largest tile by count: {connnum}")
+    offset: np.ndarray = results[0] - results[0][connnum, :]
+
+    return np.transpose(offset), np.sum(np.abs(results[1]), axis=0)
 
 
 def _solve_int_offsets(
