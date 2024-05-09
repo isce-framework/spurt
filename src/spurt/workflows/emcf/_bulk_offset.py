@@ -27,9 +27,19 @@ def get_bulk_offsets(
     overlap_file = pdir / "overlaps.h5"
     offsets_file = pdir / "bulk_offsets.h5"
 
+    # Check if offsets already computed
+    if offsets_file.is_file():
+        logger.info("Offsets file already exists. Skipping ...")
+        return
+
     # Load tile info
     with json_name.open(mode="r") as fid:
         tiledata = json.load(fid)
+
+    # Single tile processing
+    if len(tiledata["tiles"]) == 1:
+        logger.info("Single tile used. Skipping bulk offsets ...")
+        return
 
     # Load offset data for inversion
     offsets = []
