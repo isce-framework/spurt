@@ -251,3 +251,46 @@ def l2_min_cg(
             )
 
     return x, r, pre
+
+
+def dirichlet(
+    amat: Any,
+    b: np.ndarray,
+    xf: np.ndarray,
+    mask: np.ndarray,
+    logger: Any | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Find x that minimizes Ax - b in an L2 sense, subject to x[mask] == xf[mask].
+
+    Note, this has only been tested for A as a discrete Laplacian.
+
+    Parameters
+    ----------
+    amat : array-like[m, m]
+        Square matrix.
+    b : array-like[m]
+        Right hand side.
+    xf : array-like [m]
+        Fixed data, only xf[mask] is significant as input.
+    mask : array-like[m] of bool
+        mask[i] is true if x[i] should be forced to equal xf[i]
+
+    Returns
+    -------
+    x : array-like[m]
+        Solution
+    res : array-like[n]
+        Residual b - Ax
+    """
+    assert amat.shape[0] == amat.shape[1]
+
+    rhs = b - amat[:, mask].dot(xf[mask])
+
+    x = np.zeros(xf.size)
+
+    x[~mask] = l2_min_cg(
+        amat[:, ~mask][~mask, :], rhs[~mask], maxiter=100, logger=logger
+    )[0]
+    x[mask] = xf[mask]
+
+    return x, b - amat.dot(x)
