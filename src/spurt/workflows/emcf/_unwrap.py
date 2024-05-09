@@ -18,23 +18,18 @@ def unwrap_tiles(
     solv_settings: SolverSettings,
 ) -> None:
     """Unwrap each tile and save to h5."""
-    # I/O files
-    pdir = Path(gen_settings.output_folder)
-    json_name = pdir / "tiles.json"
-    tile_file_tmpl = str(pdir / "uw_tile_{}.h5")
-
     # Temporal graph
     # TODO: Generalize later to a generic graph
     n_sar = len(stack.slc_files)
     g_time = spurt.graph.Hop3Graph(n_sar)
     s_time = spurt.mcf.ORMCFSolver(g_time)  # type: ignore[abstract]
 
-    with json_name.open(mode="r") as fid:
+    with gen_settings.tiles_jsonname.open(mode="r") as fid:
         tiledata = json.load(fid)
 
     # Iterate over tiles
     for tt in range(len(tiledata["tiles"])):
-        tfname = tile_file_tmpl.format(f"{tt + 1:02d}")
+        tfname = str(gen_settings.tile_filename(tt))
         if Path(tfname).is_file():
             logger.info(f"Tile {tt+1} already processed. Skipping...")
             continue
