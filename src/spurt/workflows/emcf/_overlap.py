@@ -14,12 +14,9 @@ logger = spurt.utils.logger
 
 def compute_overlap_stats(
     gen_settings: GeneralSettings,
-    mrg_settings: MergerSettings | None = None,
+    mrg_settings: MergerSettings,
 ) -> None:
     """Compute overlap stats and save to h5."""
-    if mrg_settings is None:
-        mrg_settings = MergerSettings()
-
     # Check if already processed
     if gen_settings.overlap_filename.is_file():
         logger.info("Overlap file already exists. Skipping ...")

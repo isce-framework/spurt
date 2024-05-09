@@ -12,22 +12,11 @@ logger = spurt.utils.logger
 
 def get_tiles(
     stack: spurt.io.SLCStackReader,
-    gen_settings: GeneralSettings | None = None,
-    tile_settings: TilerSettings | None = None,
-) -> dict | None:
+    gen_settings: GeneralSettings,
+    tile_settings: TilerSettings,
+) -> None:
     """Get the tiles for given stack."""
-    if gen_settings is None:
-        gen_settings = GeneralSettings()
-
-    # No tiles requested
-    if not gen_settings.use_tiles:
-        return None
-
-    if tile_settings is None:
-        tile_settings = TilerSettings()
-
-    pdir = Path(gen_settings.output_folder)
-    json_file = pdir / "tiles.json"
+    json_file = gen_settings.tiles_jsonname
 
     # Generate tiles if file doesn't exist
     if not json_file.is_file():
@@ -71,10 +60,6 @@ def get_tiles(
 
     else:
         logger.info(f"Using existing tiles file: {json_file!s}")
-
-    # Load tiles from json file
-    with json_file.open(mode="r") as fid:
-        return json.load(fid)
 
 
 def _write_tile_json(

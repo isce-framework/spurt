@@ -14,11 +14,8 @@ logger = spurt.utils.logger
 
 def get_bulk_offsets(
     gen_settings: GeneralSettings,
-    mrg_settings: MergerSettings | None = None,
+    mrg_settings: MergerSettings,
 ) -> None:
-
-    if mrg_settings is None:
-        mrg_settings = MergerSettings()
 
     # Check if offsets already computed
     if gen_settings.offsets_filename.is_file():
