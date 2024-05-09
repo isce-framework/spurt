@@ -14,14 +14,12 @@ logger = spurt.utils.logger
 
 def unwrap_tiles(
     stack: spurt.io.SLCStackReader,
+    g_time: spurt.graph.PlanarGraphInterface,
     gen_settings: GeneralSettings,
     solv_settings: SolverSettings,
 ) -> None:
     """Unwrap each tile and save to h5."""
     # Temporal graph
-    # TODO: Generalize later to a generic graph
-    n_sar = len(stack.slc_files)
-    g_time = spurt.graph.Hop3Graph(n_sar)
     s_time = spurt.mcf.ORMCFSolver(g_time)  # type: ignore[abstract]
 
     with gen_settings.tiles_jsonname.open(mode="r") as fid:
