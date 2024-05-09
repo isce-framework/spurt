@@ -53,7 +53,7 @@ def main(args=None):
         default=0.6,
         help="Temporal coherence threshold for good pixels.",
     )
-    parser.add_arguments(
+    parser.add_argument(
         "--singletile", action="store_true", help="Process as a single tile."
     )
 

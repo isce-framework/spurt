@@ -23,10 +23,6 @@ class Tile:
         self._correction_level: int = 0
 
     @property
-    def idx(self) -> int:
-        return self._idx
-
-    @property
     def coords(self) -> np.ndarray:
         with h5py.File(self._fname, mode="r") as fid:
             pts = fid["/points"][...]
@@ -39,13 +35,6 @@ class Tile:
             offset: float = fid["/phase_offset"][self._idx]
 
         return sum([uw_data + offset] + self._corrections[:level])
-
-    def get_corrections_sum(self, level: int) -> np.ndarray:
-        return sum(self._corrections[:level])
-
-    @property
-    def corrections(self) -> np.ndarray:
-        return self.get_corrections_sum(self._correction_level)
 
     @property
     def uw_phase(self) -> np.ndarray:
@@ -140,51 +129,3 @@ def write_single_tile(
             compress="DEFLATE",
         ) as raster:
             raster[idx] = arr
-
-
-def write_merged_band(
-    tiles: list[Tile],
-    g_time: spurt.graph.GraphInterface,
-    idx: int,
-    shape: tuple[int, int],
-    gen_settings: GeneralSettings,
-) -> None:
-    """Write a single band after merging all the tiles."""
-    ifg = g_time.links[idx]
-    fname = gen_settings.unw_filename(ifg[0], ifg[1])
-    if fname.is_file():
-        logger.info(
-            f"{fname!s} for band {idx + 1} already exists. Skipping writing ..."
-        )
-        return
-
-    # check that we are looking at the same band in all tiles
-    for tile in tiles:
-        assert tile.idx == idx, "Band index mismatch"
-
-    # Create full sized array
-    arr = np.full(shape, np.nan, dtype=np.float32)
-
-    # Now iterate over tiles and fill up the array
-    for tile in tiles:
-        coords = tile.coords
-
-        int_corr = 2 * np.pi * np.rint(tile.corrections / (2 * np.pi))
-        arr[coords[:, 0], coords[:, 1]] = tile.raw_uw_phase + int_corr
-
-    # Now write array to file
-    idx = np.s_[:, :]
-    logger.info(f"Writing band {idx + 1} to {fname!s}")
-    with spurt.io.Raster.create(
-        str(fname),
-        width=shape[1],
-        height=shape[0],
-        dtype=np.float32,
-        nodata=np.nan,
-        driver="GTiff",
-        tiled=True,
-        blockxsize=512,
-        blockysize=512,
-        compress="DEFLATE",
-    ) as raster:
-        raster[idx] = arr
