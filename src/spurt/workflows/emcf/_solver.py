@@ -1,10 +1,4 @@
-"""Implementation of Extended Minimum Cost Flow (EMCF) phase unwrapping.
-
-A. Pepe and R. Lanari, "On the Extension of the Minimum Cost Flow Algorithm for
-Phase Unwrapping of Multitemporal Differential SAR Interferograms," in IEEE
-Transactions on Geoscience and Remote Sensing, vol. 44, no. 9, pp. 2374-2383,
-Sept. 2006, doi: 10.1109/TGRS.2006.873207.
-"""
+"""Implementation of Extended Minimum Cost Flow (EMCF) phase unwrapping."""
 
 from __future__ import annotations
 
@@ -19,13 +13,27 @@ from ._settings import SolverSettings
 
 
 class EMCFSolver:
-    """Implementation of the EMCF algorithm."""
+    """Implementation of the EMCF algorithm.
+
+    Implements the Extended Minimum Cost Flow (EMCF) algorithm for
+    phase unwrapping [1]_. We only implement the solver framework as the graph
+    generation and cost function implementations are not exactly replicable
+    without more details.
+
+    References
+    ----------
+    .. [1] A. Pepe and R. Lanari, "On the Extension of the Minimum Cost
+       Flow Algorithm forPhase Unwrapping of Multitemporal Differential
+       SAR Interferograms," in IEEE Transactions on Geoscience and Remote
+       Sensing, vol. 44, no. 9, pp. 2374-2383, Sept. 2006,
+       doi: 10.1109/TGRS.2006.873207.
+    """
 
     def __init__(
         self,
         solver_space: MCFSolverInterface,
         solver_time: MCFSolverInterface,
-        settings: SolverSettings | None = None,
+        settings: SolverSettings,
         link_model: LinkModelInterface | None = None,
     ):
         """Spatio-temporal unwrapping.
@@ -38,13 +46,16 @@ class EMCFSolver:
         solver_time: MCFSolverInterface
             MCF Solver interface for temporal graph usually representing
             interferograms in time-Bperp space. Typically a Delaunay triangulation.
-        model: LinkModel
+        settings: SolverSettings
+            Settings to be used for setting up the solver like number of
+            workers, link batch size etc.
+        model: LinkModel | None
             Per-link model in time used to correct the gradients before
-        unwrapping.
+            unwrapping.
         """
         self._solver_space = solver_space
         self._solver_time = solver_time
-        self._settings = settings if settings else SolverSettings()
+        self._settings = settings
         self._link_model = link_model
 
         if link_model is not None:
@@ -125,9 +136,13 @@ class EMCFSolver:
     def unwrap_gradients_in_time(
         self, wrap_data: np.ndarray, *, input_is_ifg: bool
     ) -> np.ndarray:
-        """Temporally unwrap links in parallel."""
+        """Temporally unwrap links in parallel.
+
+        The output of this step is the temporally unwrapped phase gradients on
+        each link of the spatial graph.
+        """
         # First set up temporal cost
-        if self.settings.t_cost_type == "unit":
+        if self.settings.t_cost_type == "constant":
             cost = np.ones(self.nifgs, dtype=int)
         elif self.settings.t_cost_type == "distance":
             cost = utils.distance_costs(
@@ -154,12 +169,12 @@ class EMCFSolver:
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
-        nbatches: int = (self.nlinks // self.settings.points_per_batch) + 1
+        nbatches: int = ((self.nlinks - 1) // self.settings.links_per_batch) + 1
 
         # Iterate over batches
         for bb in range(nbatches):
-            i_start = bb * self.settings.points_per_batch
-            i_end = min(i_start + self.settings.points_per_batch, self.nlinks)
+            i_start = bb * self.settings.links_per_batch
+            i_end = min(i_start + self.settings.links_per_batch, self.nlinks)
             links_in_batch = i_end - i_start
             if links_in_batch == 0:
                 continue
@@ -178,29 +193,9 @@ class EMCFSolver:
                 )
             else:
                 logger.info(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
-                ifg_inds = self._solver_time.edges
-
-                # Extract SLC data first
-                slc_data0 = wrap_data[:, inds[:, 0]]
-                slc_data1 = wrap_data[:, inds[:, 1]]
-
-                # Make interferograms for extracted points
-                ifg_data0 = utils.phase_diff(
-                    slc_data0[ifg_inds[:, 0], :], slc_data0[ifg_inds[:, 1], :]
+                self._ifg_spatial_gradients_from_slc(
+                    wrap_data, inds, grad_space, np.s_[i_start:i_end]
                 )
-                ifg_data1 = utils.phase_diff(
-                    slc_data1[ifg_inds[:, 0], :], slc_data1[ifg_inds[:, 1], :]
-                )
-
-                # Free memory
-                slc_data0 = None
-                slc_data1 = None
-
-                grad_space[:, i_start:i_end] = utils.phase_diff(ifg_data0, ifg_data1)
-
-                # Free memory
-                ifg_data0 = None
-                ifg_data1 = None
 
             # Compute residues for each cycle in temporal graph
             # Easier to loop over interferograms here
@@ -233,8 +228,8 @@ class EMCFSolver:
 
     def unwrap_gradients_in_space(self, grad_space: np.ndarray) -> np.ndarray:
         """Spatially unwrap each interferogram sequentially."""
-        # First set up temporal cost
-        if self.settings.s_cost_type == "unit":
+        # First set up spatial cost
+        if self.settings.s_cost_type == "constant":
             cost = np.ones(self.nlinks, dtype=int)
         elif self.settings.s_cost_type == "distance":
             cost = utils.distance_costs(
@@ -275,3 +270,43 @@ class EMCFSolver:
             uw_data[ii, :] = utils.flood_fill(ifg_grad, self._solver_space.edges, flows)
 
         return uw_data
+
+    def _ifg_spatial_gradients_from_slc(
+        self,
+        wrap_data: np.ndarray,
+        edges: np.ndarray,
+        grad_space: np.ndarray,
+        link_slice: slice,
+    ) -> None:
+        """Compute interferometric spatial gradients from slc data.
+
+        Parameters
+        ----------
+        wrap_data: np.ndarray
+            Wrapped slc data 2D array for whole graph of shape (nslc, npts)
+        edges: np.ndarray
+            2D array corresponding to edges in spatial graph. These are a
+            subset of all links in the graph.
+        grad_space: np.ndarray
+            Spatial gradient array for the whole graph of shape (nifg, nlinks).
+            This array gets updated in place.
+        link_slice: slice
+            Slice corresponding to edges within the array of all links.
+        """
+        # Interferogram edges
+        ifg_inds = self._solver_time.edges
+
+        # Extract SLC data first
+        slc_data0 = wrap_data[:, edges[:, 0]]
+        slc_data1 = wrap_data[:, edges[:, 1]]
+
+        # Make interferograms for extracted points
+        ifg_data0 = utils.phase_diff(
+            slc_data0[ifg_inds[:, 0], :], slc_data0[ifg_inds[:, 1], :]
+        )
+        ifg_data1 = utils.phase_diff(
+            slc_data1[ifg_inds[:, 0], :], slc_data1[ifg_inds[:, 1], :]
+        )
+
+        # Update gradient in place
+        grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1)

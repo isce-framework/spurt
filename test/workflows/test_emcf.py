@@ -61,7 +61,8 @@ def test_emcf():
     s_space = spurt.mcf.ORMCFSolver(g_space)
 
     # Create EMCF solver
-    solver = spurt.workflows.emcf.Solver(s_space, s_time)
+    settings = spurt.workflows.emcf.SolverSettings()
+    solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
     w_data = spurt.io.Irreg3DInput(
         igram.reshape((n_sar, g_space.npoints)), g_space.points
     )
@@ -87,9 +88,8 @@ def test_emcf_ramp():
     s_space = spurt.mcf.ORMCFSolver(g_space)
 
     # Create EMCF solver
-    solver = spurt.workflows.emcf.Solver(s_space, s_time)
-    # Test this setting as well
-    solver.settings.worker_count = 1
+    settings = spurt.workflows.emcf.SolverSettings(worker_count=1)
+    solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
 
     w_data = spurt.io.Irreg3DInput(
         igram.reshape((n_sar, g_space.npoints)), g_space.points
@@ -116,8 +116,8 @@ def test_emcf_eq():
     s_space = spurt.mcf.ORMCFSolver(g_space)
 
     # Create EMCF solver
-    solver = spurt.workflows.emcf.Solver(s_space, s_time)
-    # Test this setting as well
+    settings = spurt.workflows.emcf.SolverSettings()
+    solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
 
     w_data = spurt.io.Irreg3DInput(
         igram.reshape((n_sar, g_space.npoints)), g_space.points
