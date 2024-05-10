@@ -33,7 +33,7 @@ class EMCFSolver:
         self,
         solver_space: MCFSolverInterface,
         solver_time: MCFSolverInterface,
-        settings: SolverSettings | None = None,
+        settings: SolverSettings,
         link_model: LinkModelInterface | None = None,
     ):
         """Spatio-temporal unwrapping.
@@ -55,7 +55,7 @@ class EMCFSolver:
         """
         self._solver_space = solver_space
         self._solver_time = solver_time
-        self._settings = settings if settings else SolverSettings()
+        self._settings = settings
         self._link_model = link_model
 
         if link_model is not None:
@@ -136,7 +136,11 @@ class EMCFSolver:
     def unwrap_gradients_in_time(
         self, wrap_data: np.ndarray, *, input_is_ifg: bool
     ) -> np.ndarray:
-        """Temporally unwrap links in parallel."""
+        """Temporally unwrap links in parallel.
+
+        The output of this step is the temporally unwrapped phase gradients on
+        each link of the spatial graph.
+        """
         # First set up temporal cost
         if self.settings.t_cost_type == "constant":
             cost = np.ones(self.nifgs, dtype=int)
@@ -165,7 +169,7 @@ class EMCFSolver:
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
 
         # Number of batches to process
-        nbatches: int = (self.nlinks // self.settings.points_per_batch) + 1
+        nbatches: int = ((self.nlinks - 1) // self.settings.links_per_batch) + 1
 
         # Iterate over batches
         for bb in range(nbatches):
@@ -189,15 +193,8 @@ class EMCFSolver:
                 )
             else:
                 logger.info(f"Temporal: Preparing batch {bb + 1}/{nbatches}")
-                ifg_inds = self._solver_time.edges
-
-                # Extract SLC data first
-                slc_data0 = wrap_data[:, inds[:, 0]]
-                slc_data1 = wrap_data[:, inds[:, 1]]
-
-                # Make interferograms for extracted points
-                ifg_data0 = utils.phase_diff(
-                    slc_data0[ifg_inds[:, 0], :], slc_data0[ifg_inds[:, 1], :]
+                self._ifg_spatial_gradients_from_slc(
+                    wrap_data, inds, grad_space, np.s_[i_start:i_end]
                 )
 
             # Compute residues for each cycle in temporal graph

@@ -44,7 +44,7 @@ def unwrap_tiles(
         s_space = spurt.mcf.ORMCFSolver(g_space)  # type: ignore[abstract]
 
         # EMCF solver
-        solver = EMCFSolver(s_space, s_time, settings=solv_settings)
+        solver = EMCFSolver(s_space, s_time, solv_settings)
         wrap_data = stack.read_tile(space)
         assert wrap_data.shape[1] == g_space.npoints
         logger.info(f"Time steps: {solver.nifgs}")

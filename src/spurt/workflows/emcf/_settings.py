@@ -8,7 +8,7 @@ from pathlib import Path
 
 @dataclass
 class SolverSettings:
-    """Settings associated with EMCF workflow.
+    """Settings associated with Extended Minimum Cost Flow (EMCF) workflow.
 
     Parameters
     ----------
@@ -31,18 +31,29 @@ class SolverSettings:
     """
 
     worker_count: int = 0
-    points_per_batch: int = 10000
-    t_cost_type: str = "unit"
+    links_per_batch: int = 10000
+    t_cost_type: str = "constant"
     t_cost_scale: float = 100.0
     s_cost_type: str = "constant"
     s_cost_scale: float = 100.0
 
     def __post_init__(self):
-        assert self.t_cost_type in ["unit", "distance", "centroid"]
-        assert self.s_cost_type in ["unit", "distance", "centroid"]
-        assert self.points_per_batch > 0
-        assert self.t_cost_scale > 0
-        assert self.s_cost_scale > 0
+        cost_types = {"constant", "distance", "centroid"}
+        if self.t_cost_type not in cost_types:
+            errmsg = f"t_cost_type must be one of {cost_types}, got {self.t_cost_type}"
+            raise ValueError(errmsg)
+        if self.s_cost_type not in cost_types:
+            errmsg = f"s_cost_type must be one of {cost_types}, got {self.s_cost_type}"
+            raise ValueError(errmsg)
+        if self.links_per_batch <= 0:
+            errmsg = f"links_per_batch must be > 0, got {self.links_per_batch}"
+            raise ValueError(errmsg)
+        if self.t_cost_scale <= 0.0:
+            errmsg = f"t_cost_scale must be > 0, got {self.t_cost_scale}"
+            raise ValueError(errmsg)
+        if self.s_cost_scale <= 0.0:
+            errmsg = f"s_cost_scale must be > 0, got {self.s_cost_scale}"
+            raise ValueError(errmsg)
 
 
 @dataclass
@@ -130,5 +141,13 @@ class MergerSettings:
     bulk_method: str = "L2"
 
     def __post_init__(self):
-        assert self.bulk_method in ["integer", "L2"]
-        assert self.method == "dirichlet"
+        bulk_methods = {"integer", "L2"}
+        if self.bulk_method not in bulk_methods:
+            errmsg = (
+                f"bulk_method must be one of {bulk_methods}. got {self.bulk_method}"
+            )
+            raise ValueError(errmsg)
+
+        if self.method != "dirichlet":
+            errmsg = f"'dirichlet' is the only valid option, got {self.method}"
+            raise ValueError(errmsg)

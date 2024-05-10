@@ -44,7 +44,7 @@ def main(args=None):
         "--batchsize",
         type=int,
         default=50000,
-        help="Pixels per batch for temporal unwrapping.",
+        help="Links per batch for temporal unwrapping.",
     )
     parser.add_argument(
         "-c",
@@ -79,7 +79,7 @@ def main(args=None):
     # Create solver settings
     slv_settings = SolverSettings(
         worker_count=parsed_args.workers,
-        points_per_batch=parsed_args.batchsize,
+        links_per_batch=parsed_args.batchsize,
     )
 
     # Create merger settings
