@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from numpy.linalg import lstsq as lsq_dense
 from numpy.linalg import norm as lpnorm
-from scipy.sparse import csr_matrix
+from scipy.sparse import csc_matrix, csr_matrix
 from scipy.sparse.linalg import LinearOperator, cg, spilu
 from scipy.sparse.linalg import lsqr as lsq_sparse
 
@@ -88,7 +88,7 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
 
 
 def l2_min(
-    amat: np.ndarray | csr_matrix, b: np.ndarray, logger: Any | None = None
+    amat: np.ndarray | csr_matrix | csc_matrix, b: np.ndarray, logger: Any | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Find x so that Ax-b has least L2 norm.
@@ -119,13 +119,14 @@ def l2_min(
     if isinstance(amat, np.ndarray):
         x: np.ndarray = lsq_dense(amat, b, rcond=None)[0]
     else:
+        print("Running sparse lsq")
         x = lsq_sparse(amat, b)[0]
 
     return x, b - np.dot(amat, x)
 
 
 def l2_min_cg(
-    amat: np.ndarray | csr_matrix,
+    amat: np.ndarray | csr_matrix | csc_matrix,
     b: np.ndarray,
     logger: Any | None = None,
     x0: np.ndarray | None = None,
@@ -176,12 +177,9 @@ def l2_min_cg(
         return np.zeros(amat.shape[1]), np.zeros(amat.shape[0]), None
 
     # If symmetric
-    if (
-        amat.shape[0] == amat.shape[1]
-        and np.max(np.abs(amat - np.transpose(amat))) == 0
-    ):
+    if amat.shape[0] == amat.shape[1] and np.max(np.abs(amat - amat.T)) == 0:
         use_normal_eqs: bool = False
-        mat: np.ndarray = amat.copy()
+        mat: np.ndarray | csr_matrix | csc_matrix = amat.copy()
         rhs: np.ndarray = b
     else:
         use_normal_eqs = True
@@ -194,13 +192,14 @@ def l2_min_cg(
     def pre_apply(xx):
         return pre.solve(xx)
 
-    premat = LinearOperator(mat.shape, lambda ww: pre_apply(np.dot(mat, ww)))
+    premat = LinearOperator(mat.shape, lambda ww: pre_apply(mat.dot(ww)))
 
     count = 0
 
     def cb(*_):
         nonlocal count
         count = count + 1
+        # print(count, np.linalg.norm(amat.dot(xk) - b))
 
     x, info = cg(
         premat,
@@ -216,7 +215,7 @@ def l2_min_cg(
         logger.error("Something bad happened with CG!")
         return x0, None, pre
 
-    r: np.ndarray = b - np.dot(amat, x)
+    r: np.ndarray = b - amat.dot(x)
 
     # Compute the residual of the normal equations. That is compute
     # A.T b - A.T A x, where x is our solution and b is the rhs.

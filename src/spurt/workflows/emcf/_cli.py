@@ -3,8 +3,7 @@ import argparse
 import spurt
 
 from ._bulk_offset import get_bulk_offsets
-
-# from ._merge import merge_tiles
+from ._merge import merge_tiles
 from ._overlap import compute_overlap_stats
 from ._settings import GeneralSettings, MergerSettings, SolverSettings, TilerSettings
 from ._tiling import get_tiles
@@ -103,6 +102,6 @@ def main(args=None):
     get_bulk_offsets(gen_settings, mrg_settings)
 
     # Merge tiles and write output
-    # merge_tiles(stack, g_time, gen_settings, mrg_settings)
+    merge_tiles(stack, g_time, gen_settings, mrg_settings)
 
     logger.info("Completed EMCF workflow.")

@@ -1,4 +1,5 @@
 import numbers
+from pathlib import Path
 from typing import Any
 
 import h5py
@@ -6,8 +7,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 import spurt
-
-from ._settings import GeneralSettings
 
 logger = spurt.utils.logger
 
@@ -25,6 +24,10 @@ class Tile:
     @property
     def idx(self) -> int:
         return self._idx
+
+    @property
+    def correction_level(self) -> int:
+        return self._correction_level
 
     @property
     def coords(self) -> np.ndarray:
@@ -73,7 +76,6 @@ class Tile:
                 (np.arange(2 * nlinks, dtype=int) // 2, links.flatten()),
             )
         )
-
         self._graph_laplacian = amat.T.dot(amat)
         return self._graph_laplacian
 
@@ -93,6 +95,14 @@ class Tile:
     def increment_correction(self) -> None:
         self._correction_level += 1
 
+    def compress_corrections(self) -> None:
+        if len(self._corrections) > 1:
+            self._corrections[0] += self._corrections.pop()
+
+        if len(self._corrections) > 1:
+            errmsg = "More than one correction in compress mode"
+            raise RuntimeError(errmsg)
+
     def reset_band_index(self, newidx: int) -> None:
         self._idx = newidx
         # This needs to be reset since we are looking at a new band now
@@ -101,19 +111,15 @@ class Tile:
 
 def write_single_tile(
     tile: Tile,
-    g_time: spurt.graph.GraphInterface,
+    fnames: list[Path],
     shape: tuple[int, int],
-    gen_settings: GeneralSettings,
 ) -> None:
     """Write a single tile as geotiffs to output file."""
     # Get indices of the interferograms
-    ifgs = g_time.links
-
     coords = tile.coords
 
     # For each band
-    for ii, ifg in enumerate(ifgs):
-        fname = gen_settings.unw_filename(ifg[0], ifg[1])
+    for ii, fname in enumerate(fnames):
         if fname.is_file():
             logger.info(
                 f"{fname!s} for band {ii + 1} already exists. Skipping writing ..."
@@ -143,15 +149,12 @@ def write_single_tile(
 
 
 def write_merged_band(
-    tiles: list[Tile],
-    g_time: spurt.graph.GraphInterface,
+    tiles: dict[int, Tile],
+    fname: Path,
     idx: int,
     shape: tuple[int, int],
-    gen_settings: GeneralSettings,
 ) -> None:
     """Write a single band after merging all the tiles."""
-    ifg = g_time.links[idx]
-    fname = gen_settings.unw_filename(ifg[0], ifg[1])
     if fname.is_file():
         logger.info(
             f"{fname!s} for band {idx + 1} already exists. Skipping writing ..."
@@ -159,21 +162,49 @@ def write_merged_band(
         return
 
     # check that we are looking at the same band in all tiles
-    for tile in tiles:
+    for _, tile in tiles.items():
         assert tile.idx == idx, "Band index mismatch"
+        assert tile.correction_level == 1, "Only one offset supported"
 
     # Create full sized array
+    model = np.zeros(shape, dtype=np.float32)
+    cnt = np.zeros(shape, dtype=np.int16)
+    minval = np.full(shape, np.inf, dtype=np.float32)
+    maxval = np.full(shape, -np.inf, dtype=np.float32)
+
+    # Now iterate over tiles and compute average
+    for _, tile in tiles.items():
+        coords = tile.coords.astype(np.int16)
+        c0 = coords[:, 0]
+        c1 = coords[:, 1]
+
+        data = tile.uw_phase
+        minval[c0, c1] = np.minimum(data, minval[c0, c1])
+        maxval[c0, c1] = np.maximum(data, maxval[c0, c1])
+
+        model[coords[:, 0], coords[:, 1]] += tile.uw_phase
+        cnt[coords[:, 0], coords[:, 1]] += 1
+
+    mask = cnt != 0
+    model[~mask] = np.nan
+    model[mask] /= cnt[mask]
+    diff = maxval - minval
+    diff[cnt < 2] = np.nan
+    diff[np.isinf(diff)] = np.nan
+
+    # Now iterate over tiles and wrap around model
     arr = np.full(shape, np.nan, dtype=np.float32)
+    for _, tile in tiles.items():
+        coords = tile.coords.astype(np.int16)
+        c0 = coords[:, 0]
+        c1 = coords[:, 1]
+        mmodel = model[c0, c1]
+        d = tile.raw_uw_phase - mmodel
 
-    # Now iterate over tiles and fill up the array
-    for tile in tiles:
-        coords = tile.coords
-
-        int_corr = 2 * np.pi * np.rint(tile.corrections / (2 * np.pi))
-        arr[coords[:, 0], coords[:, 1]] = tile.raw_uw_phase + int_corr
+        arr[c0, c1] = mmodel + d - 2 * np.pi * np.round(d / (2 * np.pi))
 
     # Now write array to file
-    idx = np.s_[:, :]
+    sidx = np.s_[:, :]
     logger.info(f"Writing band {idx + 1} to {fname!s}")
     with spurt.io.Raster.create(
         str(fname),
@@ -187,4 +218,34 @@ def write_merged_band(
         blockysize=512,
         compress="DEFLATE",
     ) as raster:
-        raster[idx] = arr
+        raster[sidx] = arr
+
+    # Now write array to file
+    with spurt.io.Raster.create(
+        str(fname).replace(".tif", "_diff.tif"),
+        width=shape[1],
+        height=shape[0],
+        dtype=np.float32,
+        nodata=np.nan,
+        driver="GTiff",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="DEFLATE",
+    ) as raster:
+        raster[sidx] = diff
+
+    # Now write array to file
+    with spurt.io.Raster.create(
+        str(fname).replace(".tif", "_model.tif"),
+        width=shape[1],
+        height=shape[0],
+        dtype=np.float32,
+        nodata=np.nan,
+        driver="GTiff",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="DEFLATE",
+    ) as raster:
+        raster[sidx] = model
