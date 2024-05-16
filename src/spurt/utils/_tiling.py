@@ -8,9 +8,9 @@ from numpy.typing import ArrayLike
 
 def intersects(box1: ArrayLike, box2: ArrayLike) -> bool:
     """Check if two boxes intersect."""
-    return not (
-        box1[2] < box2[0] or box1[0] > box2[2] or box1[1] > box2[3] or box1[3] < box2[1]
-    )
+    left1, bottom1, right1, top1 = box1
+    left2, bottom2, right2, top2 = box2
+    return not (right1 < left2 or left1 > right2 or bottom1 > top2 or top1 < bottom2)
 
 
 @runtime_checkable
