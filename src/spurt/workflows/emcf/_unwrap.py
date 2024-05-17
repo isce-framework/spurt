@@ -78,7 +78,7 @@ def _dump_tile_to_h5(
 ) -> None:
     with h5py.File(fname, "w") as fid:
         fid["uw_data"] = uw
-        fid["points"] = gspace.points
+        fid["points"] = gspace.points.astype(np.int32)
         fid["tile"] = np.array(tile["bounds"]).astype(np.int32)
         fid["phase_offset"] = off.astype(np.float32)
 

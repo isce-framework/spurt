@@ -43,8 +43,6 @@ def compute_overlap_stats(
             t1 = pair[0]
             bnds1 = tiledata["tiles"][t1]["bounds"]
             pt1, uw1 = _load_uw_tile(str(gen_settings.tile_filename(t1)), bnds1)
-            pt1[:, 0] += bnds1[0]
-            pt1[:, 1] += bnds1[1]
 
         if pair[1] != t2:
             t2 = pair[1]
@@ -69,8 +67,8 @@ def compute_overlap_stats(
         grpname = gen_settings.overlap_groupname(t1, t2)
         with h5py.File(overlap_file, "a") as fid:
             grp = fid.create_group(grpname)
-            grp["c1"] = c1.astype(np.int16)
-            grp["c2"] = c2.astype(np.int16)
+            grp["c1"] = c1.astype(int)
+            grp["c2"] = c2.astype(int)
             grp["stats"] = stats.astype(np.int16)
 
     # Identify connected components
@@ -98,7 +96,7 @@ def _load_uw_tile(fname: str, bnds: list[int]) -> tuple[np.ndarray, np.ndarray]:
     uw += off
 
     # Apply bounds offset to locations
-    pts[:, 0] + bnds[0]
-    pts[:, 1] + bnds[1]
+    pts[:, 0] = pts[:, 0] + bnds[0]
+    pts[:, 1] = pts[:, 1] + bnds[1]
 
     return pts, uw

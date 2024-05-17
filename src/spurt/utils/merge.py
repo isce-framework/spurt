@@ -119,14 +119,13 @@ def l2_min(
     if isinstance(amat, np.ndarray):
         x: np.ndarray = lsq_dense(amat, b, rcond=None)[0]
     else:
-        print("Running sparse lsq")
         x = lsq_sparse(amat, b)[0]
 
     return x, b - np.dot(amat, x)
 
 
 def l2_min_cg(
-    amat: np.ndarray | csr_matrix | csc_matrix,
+    amat: Any,
     b: np.ndarray,
     logger: Any | None = None,
     x0: np.ndarray | None = None,
@@ -204,8 +203,8 @@ def l2_min_cg(
     x, info = cg(
         premat,
         pre_apply(rhs),
-        tol=1e-4,
-        atol=1e-4,
+        tol=1e-7,
+        atol=1e-7,
         x0=x0,
         maxiter=maxiter,
         callback=cb,

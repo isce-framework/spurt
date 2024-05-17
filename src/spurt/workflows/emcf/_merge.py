@@ -48,10 +48,8 @@ def merge_tiles(
         return
 
     # Create overmap lap for the graph
-    overlap_map: dict[int, list[int]] = _get_overlap_map(gen_settings)
-
-    # Get maximum degree
-    max_degree: int = max([len(vv) for kk, vv in overlap_map.items()])
+    overlap_map = _get_overlap_map(gen_settings)
+    max_degree = 4
 
     # Read bulk offsets from hdf5 file
     with h5py.File(str(gen_settings.offsets_filename), "r") as fid:
@@ -74,7 +72,7 @@ def merge_tiles(
             tile.increment_correction()
 
         # Adjust the tiles
-        _adjust_tiles(tiles, overlap_map, gen_settings, max_degree)
+        _adjust_tiles(tiles, overlap_map, gen_settings, max_degree, debug_stats=False)
 
         # Write file to output
         write_merged_band(tiles, fname, ii, tiledata["shape"])
@@ -85,15 +83,22 @@ def _adjust_tiles(
     overlap_map: dict[int, list[int]],
     gen_settings: GeneralSettings,
     max_degree: int,
+    debug_stats: bool | None = None,
 ) -> None:
+
+    if debug_stats is None:
+        debug_stats = False
+
     # Start overlap processing
     for overlap_degree in range(int(max_degree), 1, -1):
         logger.info(f"Generating corrections for overlap degree: {overlap_degree}")
 
         for ii, tile_i in tiles.items():
             logger.info(f"Processing tile: {ii}")
+            assert tile_i.correction_level == 1, "Bad correction level in compress mode"
+            data = tile_i.uw_phase
             c = np.ones(tile_i.coords.shape[0], dtype=np.int16)
-            s = np.copy(tile_i.uw_phase.astype(np.float32))
+            s = data.astype(np.float32)
             for jj in overlap_map[ii]:
                 tile_j = tiles[jj]
                 if jj > ii:
@@ -106,7 +111,7 @@ def _adjust_tiles(
             if np.sum(c >= overlap_degree) == 0:
                 continue
             overlap_average = s / c
-            raw_correction = overlap_average - tile_i.uw_phase
+            raw_correction = overlap_average - data
 
             logger.info("Solving Dirichlet problem")
             correction = spurt.utils.merge.dirichlet(
@@ -114,6 +119,7 @@ def _adjust_tiles(
                 np.zeros(s.size),
                 raw_correction,
                 c >= overlap_degree,
+                logger=logger,
             )[0]
 
             tile_i.add_correction(correction.astype(np.float32))
@@ -124,6 +130,16 @@ def _adjust_tiles(
 
             # Uncomment to track each level of correction
             # tile.increment_correction()
+
+    if debug_stats:
+        # Verification of overlap differences
+        for ii, tile_i in tiles.items():
+            for jj in overlap_map[ii]:
+                if jj <= ii:
+                    continue
+                idx_i, idx_j = _get_common_overlap(gen_settings, ii, jj)
+                diff = tile_i.uw_phase[idx_i] - tiles[jj].uw_phase[idx_j]
+                logger.info(f"Overlap between {ii}, {jj} : {np.max(np.abs(diff))}")
 
 
 def _get_overlap_map(

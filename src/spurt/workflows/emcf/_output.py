@@ -34,7 +34,8 @@ class Tile:
         with h5py.File(self._fname, mode="r") as fid:
             pts = fid["/points"][...]
             tile = fid["/tile"][...]
-            return pts + tile[None, :2]
+
+        return pts + tile[None, :2]
 
     def get_uw_phase(self, level: int) -> np.ndarray:
         with h5py.File(self._fname, mode="r") as fid:
@@ -174,7 +175,7 @@ def write_merged_band(
 
     # Now iterate over tiles and compute average
     for _, tile in tiles.items():
-        coords = tile.coords.astype(np.int16)
+        coords = tile.coords.astype(np.int32)
         c0 = coords[:, 0]
         c1 = coords[:, 1]
 
@@ -195,7 +196,7 @@ def write_merged_band(
     # Now iterate over tiles and wrap around model
     arr = np.full(shape, np.nan, dtype=np.float32)
     for _, tile in tiles.items():
-        coords = tile.coords.astype(np.int16)
+        coords = tile.coords.astype(np.int32)
         c0 = coords[:, 0]
         c1 = coords[:, 1]
         mmodel = model[c0, c1]
