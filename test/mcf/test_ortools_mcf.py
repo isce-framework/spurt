@@ -188,22 +188,6 @@ def test_grad_residues():
     grads = point_data[solver.edges[:, 1]] - point_data[solver.edges[:, 0]]
     grads_resid = solver.compute_residues_from_gradients(grads)
 
-    """
-    pts_resid = solver.compute_residue(point_data)
-    print(solver.cycles[0])
-    print(grads_resid[1], pts_resid[1])
-    print(point_data[solver.cycles[0]])
-    edge_to_index = {}
-    for ii, edge in enumerate(solver.edges):
-        edge_to_index[spurt.graph.utils.order_points((edge[0], edge[1]))] = ii
-
-    cyc = solver.cycles[0]
-
-    for ii in range(3):
-        jj = (ii + 1) % 3
-        ind = edge_to_index[spurt.graph.utils.order_points((cyc[ii], cyc[jj]))]
-        print(ind, grads[ind], solver.dual_edges[ind], solver.dual_edge_dir[ind])
-    """
     assert grads_resid.min() == 0
     assert grads_resid.max() == 0
 
