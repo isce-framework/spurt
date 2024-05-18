@@ -4,7 +4,6 @@ from typing import Any
 
 import h5py
 import numpy as np
-from scipy.sparse import csr_matrix
 
 import spurt
 
@@ -67,17 +66,7 @@ class Tile:
             return self._graph_laplacian
 
         g_space = spurt.graph.DelaunayGraph(self.coords)
-        links = g_space.links
-        nlinks = links.shape[0]
-        data = np.ones(2 * nlinks, dtype=int)
-        data[0::2] = -1
-        amat = csr_matrix(
-            (
-                data,
-                (np.arange(2 * nlinks, dtype=int) // 2, links.flatten()),
-            )
-        )
-        self._graph_laplacian = amat.T.dot(amat)
+        self._graph_laplacian = spurt.graph.graph_laplacian(g_space)
         return self._graph_laplacian
 
     def add_correction(self, a) -> None:
