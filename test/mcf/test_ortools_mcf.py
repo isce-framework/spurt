@@ -38,7 +38,7 @@ def test_flood_fill():
     # Flows are fed back to ensure that flood fill unwraps it correctly
     flows = np.rint((point_data[edges[:, 1]] - point_data[edges[:, 0]]) / (2 * np.pi))
 
-    point_data1 = spurt.mcf.utils.flood_fill(point_data, edges, flows)
+    point_data1 = spurt.mcf.utils.flood_fill(point_data, edges, flows, mode="points")
 
     assert not np.allclose(np.ptp(point_data), 0.0)
     assert np.allclose(np.ptp(point_data - point_data1), 0.0)
@@ -55,7 +55,7 @@ def test_flood_fill_gradients():
     grads = spurt.mcf.utils.phase_diff(point_data[edges[:, 0]], point_data[edges[:, 1]])
     flows = np.rint((point_data[edges[:, 1]] - point_data[edges[:, 0]]) / (2 * np.pi))
 
-    point_data1 = spurt.mcf.utils.flood_fill(grads, edges, flows)
+    point_data1 = spurt.mcf.utils.flood_fill(grads, edges, flows, mode="gradients")
 
     assert not np.allclose(np.ptp(point_data), 0.0)
     assert np.allclose(np.ptp(point_data - point_data1), 0.0)

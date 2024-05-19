@@ -267,7 +267,9 @@ class EMCFSolver:
             flows = self._solver_space.residues_to_flows(residues, cost)
 
             # Flood fill
-            uw_data[ii, :] = utils.flood_fill(ifg_grad, self._solver_space.edges, flows)
+            uw_data[ii, :] = utils.flood_fill(
+                ifg_grad, self._solver_space.edges, flows, mode="gradients"
+            )
 
         return uw_data
 

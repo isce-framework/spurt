@@ -187,7 +187,7 @@ class ORMCFSolver(MCFSolverInterface):
         flows = self.residues_to_flows(residues, cost, revcost=revcost)
 
         # Flood fill with the flows
-        unw = flood_fill(wrapdata, self.edges, flows)
+        unw = flood_fill(wrapdata, self.edges, flows, mode="points")
 
         return unw, flows
 
