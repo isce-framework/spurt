@@ -121,7 +121,7 @@ def l2_min(
     else:
         x = lsq_sparse(amat, b)[0]
 
-    return x, b - np.dot(amat, x)
+    return x, b - amat.dot(x)
 
 
 def l2_min_cg(
@@ -151,7 +151,7 @@ def l2_min_cg(
         Optional, logger to which diagnostic messages will be sent.
     x0 : vector-like
         Optional, initial guess
-    max_iters : integer
+    maxiter : integer
         Optional, maximum number of iterations
 
     Returns
