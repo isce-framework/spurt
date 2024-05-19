@@ -69,7 +69,9 @@ class Reg2DGraph(PlanarGraphInterface):
         """Create regular 2D graph of given shape."""
         self._shape = shape
         self._links: np.ndarray | None = None
+        self._cycles: np.ndarray | None = None
         self._create_links()
+        self._create_cycles()
 
     @property
     def npoints(self) -> int:
@@ -85,8 +87,7 @@ class Reg2DGraph(PlanarGraphInterface):
         i, j = np.indices(self._shape).reshape(2, -1)
         return np.column_stack((j, i))
 
-    @property
-    def cycles(self) -> np.ndarray:
+    def _create_cycles(self) -> None:
         """Return rectangular loops in 2D grid."""
         ncyc = self.npoints - self._shape[0] - self._shape[1] + 1
         cyc = np.zeros((ncyc, 4), dtype=int)
@@ -102,7 +103,7 @@ class Reg2DGraph(PlanarGraphInterface):
                 )
                 ind += 1
 
-        return cyc
+        self._cycles = cyc
 
     @property
     def boundary(self) -> np.ndarray:
@@ -162,3 +163,7 @@ class Reg2DGraph(PlanarGraphInterface):
     @property
     def links(self) -> np.ndarray:
         return self._links
+
+    @property
+    def cycles(self) -> np.ndarray:
+        return self._cycles

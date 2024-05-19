@@ -3,9 +3,12 @@ from __future__ import annotations
 import numpy as np
 
 
-def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
-    """
-    Compute the wrapped phase difference for between two numbers in radians.
+def phase_diff(
+    z0: np.ndarray, z1: np.ndarray, model: float | np.ndarray = 0.0
+) -> np.ndarray:
+    """Compute the wrapped phase difference for between two numbers in radians.
+
+    If a model is provided, represents phase difference within +/-pi of the model.
 
     Parameters
     ----------
@@ -13,14 +16,16 @@ def phase_diff(z0: np.ndarray, z1: np.ndarray) -> np.ndarray:
         Can be complex or real
     z1 : np.ndarray
         Same type as z0
+    model: float | np.ndarray, optional
+        Real array with a model of the phase difference
     """
     if np.iscomplexobj(z0):
         p0 = np.angle(z0)
         p1 = np.angle(z1)
-        d = p1 - p0
+        d = p1 - p0 - model
     else:
-        d = z1 - z0
-    return d - np.round(d / (2 * np.pi)) * 2 * np.pi
+        d = z1 - z0 - model
+    return model + d - np.round(d / (2 * np.pi)) * 2 * np.pi
 
 
 def sign_nonzero(x: float) -> int:
@@ -46,7 +51,8 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     Parameters
     ----------
     indata: np.ndarray
-        Input wrapped phase data as 1D array. Same size as number of points in graph.
+        Input wrapped phase/ gradient data as 1D array. Same size as number of
+        points/ edges in graph.
     links : np.ndarray
         Links specifed as tuples of point indices. The links should represented
         a fully connected graph.
@@ -62,8 +68,16 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         errmsg = f"Dimension mismatch - {links.shape} vs {flows.shape}"
         raise ValueError(errmsg)
 
+    if len(indata) == len(links):
+        input_is_pts = False
+        npts = np.max(links) + 1
+
+    else:
+        input_is_pts = True
+        npts = len(indata)
+
     # Indices of points
-    pts = np.arange(len(indata))
+    pts = np.arange(npts)
 
     # Mapping of points to its immediate neighbors and gradient on the link
     pts_to_nbrs: dict = {pt: [] for pt in pts}
@@ -71,7 +85,12 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
     # Iterate over the links
     for ii, link in enumerate(links):
         # Get the unwrapped phase gradient by adding flows to
-        gradient = phase_diff(indata[link[0]], indata[link[1]]) + 2 * np.pi * flows[ii]
+        if input_is_pts:
+            gradient = (
+                phase_diff(indata[link[0]], indata[link[1]]) + 2 * np.pi * flows[ii]
+            )
+        else:
+            gradient = indata[ii] + 2 * np.pi * flows[ii]
 
         # Add the link in either direction with appropriate gradient sign
         pts_to_nbrs[link[0]].append((link[1], gradient))
@@ -141,10 +160,11 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         raise ValueError(errmsg)
 
     # Adding the source node value - we started at index 0
-    if np.iscomplexobj(indata):
-        unwrapped += np.angle(indata[0])
-    else:
-        unwrapped += indata[0]
+    if input_is_pts:
+        if np.iscomplexobj(indata):
+            unwrapped += np.angle(indata[0])
+        else:
+            unwrapped += indata[0]
 
     return unwrapped
 

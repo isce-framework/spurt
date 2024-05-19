@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from multiprocessing import Pool
+from multiprocessing import get_context
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -30,19 +30,41 @@ class ORMCFSolver(MCFSolverInterface):
         multiple inputs
         """
         # We borrow the arrays and avoid copying
-        self.npoints = graph.npoints
-        self.edges = graph.links
-        self.cycles = graph.cycles
+        self._graph: PlanarGraphInterface = graph
 
         # These are needed for MCF
         # Edges represent arcs between cycles
-        self._dual_edges: np.ndarray = np.zeros((len(self.edges), 2), dtype=np.int32)
+        self._dual_edges: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int32)
         # One-to-one correspondence with _dual_edges and represents
         # relative orientation of an edge within a cycle
-        # -1 implies increasing/ fwd direction, 1 implies decreasing/reverse
+        # 1 implies increasing/ fwd direction, -1 implies decreasing/reverse
         # direction and zero denotes an edge to the grounding node
-        self._dual_edge_dir: np.ndarray = np.zeros((len(self.edges), 2), dtype=np.int8)
+        self._dual_edge_dir: np.ndarray = np.zeros((self.nedges, 2), dtype=np.int8)
         self._prepare_dual()
+
+    @property
+    def npoints(self) -> int:
+        return self._graph.npoints
+
+    @property
+    def nedges(self) -> int:
+        return len(self._graph.links)
+
+    @property
+    def ncycles(self) -> int:
+        return len(self._graph.cycles)
+
+    @property
+    def edges(self) -> np.ndarray:
+        return self._graph.links
+
+    @property
+    def cycles(self) -> np.ndarray:
+        return self._graph.cycles
+
+    @property
+    def cycle_length(self) -> int:
+        return len(self.cycles[0])
 
     def _prepare_dual(self) -> None:
         """Identify edges of the dual graph.
@@ -67,7 +89,7 @@ class ORMCFSolver(MCFSolverInterface):
                 # Sign indicates if the edge order in forward / reverse
                 # direction. We augment icyc by 1 to use the sign infomation.
                 edge_to_cycles[edge].append(
-                    (icyc + 1, sign_nonzero(cycle[ii] - cycle[jj]))
+                    (icyc + 1, sign_nonzero(cycle[jj] - cycle[ii]))
                 )
 
         # Now build list of dual_edges
@@ -93,6 +115,10 @@ class ORMCFSolver(MCFSolverInterface):
     def dual_edges(self) -> np.ndarray:
         return self._dual_edges
 
+    @property
+    def dual_edge_dir(self) -> np.ndarray:
+        return self._dual_edge_dir
+
     def compute_residues(
         self,
         wrapdata: ArrayLike,
@@ -100,22 +126,48 @@ class ORMCFSolver(MCFSolverInterface):
         """Compute phase residues for one set of input wrapped data."""
         if wrapdata.size != self.npoints:
             errmsg = (
-                f"Size mismatch for unwrapping."
+                f"Size mismatch for residue computation."
                 f" Received {wrapdata.shape} with {self.npoints} points"
             )
             raise ValueError(errmsg)
 
         # Residues includes the grounding node at index 0
-        residues = np.zeros(len(self.cycles) + 1)
-        ndim = len(self.cycles[0])
+        residues = np.zeros(self.ncycles + 1)
+        ndim = self.cycle_length
         for col in range(ndim):
             nn = (col + 1) % ndim
             residues[1:] += phase_diff(
                 wrapdata[self.cycles[:, col]], wrapdata[self.cycles[:, nn]]
             )
-        residues = np.rint(residues / (2 * np.pi))
-        # Set supply of ground_node
+        residues = np.rint(residues / (2 * np.pi)).astype(int)
         residues[0] = -np.sum(residues[1:])
+        return residues
+
+    def compute_residues_from_gradients(
+        self,
+        graddata: ArrayLike,
+    ) -> ArrayLike:
+        """Compute phase residues for one set of real input gradients."""
+        if graddata.size != self.nedges:
+            errmsg = (
+                f"Size mismatch for residue computation."
+                f" Received {graddata.shape} with {self.nedges} edges"
+            )
+            raise ValueError(errmsg)
+
+        cyc0 = np.abs(self.dual_edges[:, 0])
+        cyc1 = np.abs(self.dual_edges[:, 1])
+        cyc0_dir = self.dual_edge_dir[:, 0]
+        cyc1_dir = self.dual_edge_dir[:, 1]
+        grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
+        # add.at to handle repeated indices
+        np.add.at(grad_sum, cyc0, cyc0_dir * graddata)
+        np.add.at(grad_sum, cyc1, cyc1_dir * graddata)
+
+        residues = np.rint(grad_sum / (2 * np.pi))
+        # Set supply of groud_node
+        residues[0] = -np.sum(residues[1:])
+
         return residues
 
     def unwrap_one(
@@ -149,6 +201,12 @@ class ORMCFSolver(MCFSolverInterface):
 
         This is exposed to allow for unwrapping with gradients.
         """
+        # Only solve if necessary
+        if not np.any(residues != 0):
+            return np.zeros(self.nedges, dtype=np.int32)
+
+        if revcost is None:
+            revcost = cost
         return solve_mcf(self._dual_edges, self._dual_edge_dir, residues, cost, revcost)
 
     def residues_to_flows_many(
@@ -164,7 +222,7 @@ class ORMCFSolver(MCFSolverInterface):
         Treating costs as 1D arrays for now. Can consider 2D at a later time,
         if necessary.
         """
-        if worker_count is None:
+        if (worker_count is None) or (worker_count <= 0):
             worker_count = max(1, get_cpu_count() - 1)
 
         if revcost is None:
@@ -173,46 +231,51 @@ class ORMCFSolver(MCFSolverInterface):
         # Get dimensions of the problem
         nruns, nresidues = residues.shape
 
-        if nresidues != len(self.cycles) + 1:
+        if nresidues != self.ncycles + 1:
             errmsg = (
                 f"Number of residues {nresidues} does not match number of"
-                f" cycles {len(self.cycles)}"
+                f" cycles {self.ncycles}"
             )
             raise ValueError(errmsg)
 
         # Create flows output variable
-        flows = np.zeros((nruns, len(self.edges)), dtype=np.int32)
-
-        # Function to call with worker pool
-        def uw_inputs(idxs):
-            for ii in idxs:
-                yield (
-                    ii,
-                    self._dual_edges,
-                    self._dual_edge_dir,
-                    residues[ii],
-                    cost,
-                    revcost,
-                )
+        flows = np.zeros((nruns, self.nedges), dtype=np.int32)
 
         # Only use multiprocessing if needed
         if worker_count == 1:
             for ii, res in enumerate(residues):
-                flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
+                if np.any(res != 0):
+                    flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
 
         else:
+            print(f"Processing batch of {nruns} with {worker_count} threads")
+
+            def uw_inputs(idxs):
+                for ii in idxs:
+                    # Only solve if needed
+                    if not np.any(residues[ii] != 0):
+                        continue
+
+                    yield (
+                        ii,
+                        self._dual_edges,
+                        self._dual_edge_dir,
+                        residues[ii],
+                        cost,
+                        revcost,
+                    )
+
             # Create a pool and dispatch
-            p = Pool(processes=worker_count, maxtasksperchild=1)
-            mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
-            p.close()
+            # We explicitly use fork here as osx has switched to using spawn
+            # and that really slows down the use of multiprocessing
+            with get_context("fork").Pool(
+                processes=worker_count, maxtasksperchild=1
+            ) as p:
+                mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
 
-            # Gather results
-            count = 0
-            for res in mp_tasks:
-                flows[res[0], :] = res[1]
-                count += 1
-
-            assert count == nruns, "Output size != Input size"
+                # Gather results
+                for res in mp_tasks:
+                    flows[res[0], :] = res[1]
 
         return flows
 
@@ -284,7 +347,7 @@ def solve_mcf(
     flows = np.zeros(num_edges, dtype=int)
     for ii in range(num_edges):
         # Sign accounts for orientation of edge in cycles
-        flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii) - smcf.flow(ii + num_edges))
+        flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii + num_edges) - smcf.flow(ii))
 
     return flows
 
