@@ -85,7 +85,13 @@ def _adjust_tiles(
     max_degree: int,
     debug_stats: bool | None = None,
 ) -> None:
+    """Dirichlet-based tile adjustment described in [1]_.
 
+    References
+    ----------
+    .. [1] M. T. Calef, Olsen K. M., & Agram P. S., "Merging Point Data for
+           InSAR Deformation Processing", in arXiv preprints arXiv:2405.06838, 2024.
+    """
     if debug_stats is None:
         debug_stats = False
 
