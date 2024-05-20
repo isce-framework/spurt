@@ -1,16 +1,91 @@
 from __future__ import annotations
 
+import json
 from typing import Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import ArrayLike
+from Pathlib import Path
 
 
 def intersects(box1: ArrayLike, box2: ArrayLike) -> bool:
     """Check if two boxes intersect."""
     left1, bottom1, right1, top1 = box1
     left2, bottom2, right2, top2 = box2
-    return not (right1 < left2 or left1 > right2 or bottom1 > top2 or top1 < bottom2)
+    return not (
+        (right1 < left2 or left1 > right2) or (bottom1 > top2 or top1 < bottom2)
+    )
+
+
+class TileSet:
+    """Utility class for managing collection of tiles."""
+
+    def __init__(
+        self,
+        shape: tuple[int, int],
+        tiles: list[list[int]],
+    ):
+        self._shape: tuple[int, int] = shape
+        self._tiles: list[list[int]] = tiles
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
+    def tiles(self) -> list[list[int]]:
+        return self._tiles
+
+    @property
+    def ntiles(self) -> int:
+        return len(self._tiles)
+
+    @classmethod
+    def from_json(cls, fname: Path) -> TileSet:
+        """Load tiles from a json file."""
+        with fname.open(mode="r") as fid:
+            jdict = json.load(fid)
+
+        return TileSet(jdict["shape"], jdict["tiles"])
+
+    def to_json(self, fname: Path) -> None:
+        """Write tiles to a json file."""
+        jdict: dict = {
+            "shape": self.shape,
+            "tiles": self.tiles,
+        }
+        with fname.open(mode="w") as fid:
+            fid.write(json.dumps(jdict, indent=4))
+
+    def get_overlaps(self) -> list[tuple[int, int]]:
+        """Return list of pairs of overlapping tiles."""
+        olaps: list[tuple[int, int]] = []
+
+        ntiles = self.ntiles
+        for ii in range(ntiles - 1):
+            for jj in range(ii + 1, ntiles):
+                if intersects(self._tiles[ii], self._tiles[jj]):
+                    olaps.append((ii, jj))
+
+        return olaps
+
+    def dilate(self, factor: float) -> TileSet:
+        """Dilate current tile set."""
+        tiles: list[list[int]] = []
+        shape = self.shape
+
+        # Iterate over and dilate rectangles
+        for tt in self.tiles:
+            rdiff = tt[2] - tt[0]
+            r0 = int(max(0, tt[0] - factor * rdiff))
+            r1 = int(min(shape[0], tt[2] + factor * rdiff))
+            cdiff = tt[3] - tt[1]
+            c0 = int(max(0, tt[1] - factor * cdiff))
+            c1 = int(min(shape[1], tt[3] + factor * cdiff))
+
+            tiles.append([r0, c0, r1, c1])
+
+        return TileSet(shape, tiles)
 
 
 @runtime_checkable
