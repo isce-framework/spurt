@@ -188,26 +188,14 @@ def l2_min_cg(
     # Pre-conditioner
     pre = spilu(mat, fill_factor=100)
 
-    def pre_apply(xx):
-        return pre.solve(xx)
-
-    premat = LinearOperator(mat.shape, lambda ww: pre_apply(mat.dot(ww)))
-
-    count = 0
-
-    def cb(*_):
-        nonlocal count
-        count = count + 1
-        # print(count, np.linalg.norm(amat.dot(xk) - b))
-
     x, info = cg(
-        premat,
-        pre_apply(rhs),
+        mat,
+        rhs,
         tol=1e-7,
         atol=1e-7,
         x0=x0,
         maxiter=maxiter,
-        callback=cb,
+        M=LinearOperator(mat.shape, pre.solve),
     )
 
     if info < 0 and logger is not None:
@@ -232,10 +220,7 @@ def l2_min_cg(
 
     if logger is not None:
         if maxiter is not None:
-            logger.info(
-                f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}, "
-                f"CG num iters/max iters {count/maxiter}"
-            )
+            logger.info(f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}. ")
             if use_normal_eqs:
                 logger.info(
                     "Relative size of residual of normal eqs"
