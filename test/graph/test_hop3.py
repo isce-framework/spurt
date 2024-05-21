@@ -21,3 +21,4 @@ class TestHop3:
 
         # Euler's formula
         assert (g.npoints - len(g.links) + len(g.cycles) + 1) == 2
+        assert g.boundary == np.array([[0, 1], [1, 3], [3, 0]])
