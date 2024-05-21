@@ -19,10 +19,15 @@ class Parameters:
     matrix: np.ndarray
 
     # One slice per variable
-    ranges: tuple[slice]
+    ranges: tuple[slice, ...]
 
     def __post_init__(self):
-        assert self.matrix.shape[1] == len(self.ranges)
+        if self.matrix.shape[1] != len(self.ranges):
+            errmsg = (
+                f"size mismatch: matrix ncol ({self.matrix.shape[1]})"
+                f" did not match ranges size ({len(self.ranges)})"
+            )
+            raise ValueError(errmsg)
 
 
 class GridSearchLinearModel(Parameters, LinkModelInterface):
@@ -52,7 +57,7 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
         wrapdata: np.ndarray,
         weights: np.ndarray | float | None = None,
     ) -> tuple[np.ndarray, float]:
-        """Grid search followed by fmin.
+        """Fit model parameters via grid search followed by Nelder-Mead optimization.
 
         Parameters
         ----------
@@ -159,7 +164,10 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
 
 
 def solve(
-    matrix: np.ndarray, rngs: tuple[slice], wdata: np.ndarray, wts: np.ndarray | float
+    matrix: np.ndarray,
+    rngs: tuple[slice, ...],
+    wdata: np.ndarray,
+    wts: np.ndarray | float,
 ) -> tuple[np.ndarray, float]:
     """Actual call to the solver."""
     resbrute = optimize.brute(
