@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import ArrayLike
-from Pathlib import Path
 
 
 def intersects(box1: ArrayLike, box2: ArrayLike) -> bool:
