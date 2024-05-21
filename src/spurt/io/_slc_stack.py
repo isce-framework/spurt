@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
-from numpy.typing import ArrayLike
 
 from ._raster import Raster
 from ._three_d import Irreg3DInput
@@ -205,6 +204,6 @@ class SLCStackReader:
     def read_temporal_coherence(
         self,
         space: tuple[slice, ...],
-    ) -> ArrayLike:
+    ) -> np.ndarray:
         """Return full temporal coherence."""
         return self._read_file(self.temp_coh_file, space)

@@ -1,38 +1,50 @@
 import numpy as np
+from scipy.sparse import csc_matrix, csr_matrix
 
 
-def temporal_coherence(
-    x: np.ndarray, *args: tuple[np.ndarray, np.ndarray, np.ndarray | float]
+def neg_temporal_coherence(
+    x: np.ndarray,
+    amat: np.ndarray | csr_matrix | csc_matrix,
+    b: np.ndarray,
+    wts: np.ndarray | float,
 ) -> float:
-    """Temporal coherence function to minimize.
+    """Negative of temporal coherence function.
 
-    args[0]: matrixA
-    args[1]: b
-    args[2]: weight
+    For definition of temporal coherence, see [1]_. We implement the
+    function as negative of temporal coherence, for ease of use with
+    scipy.minimize.
+
+    References
+    ----------
+    [1] Ferretti, A., Prati, C. and Rocca, F., 2001. Permanent scatterers
+        in SAR interferometry. IEEE Transactions on geoscience and remote
+        sensing, 39(1), pp.8-20.
     """
-    res = np.dot(args[0], x) - args[1]
-    return -np.abs(np.sum(args[2] * np.exp(1j * res)))
+    res = amat.dot(x) - b
+    return -np.abs(np.sum(wts * np.exp(1j * res)))
 
 
-def temporal_coherence_with_jac(
-    x: np.ndarray, *args: tuple[np.ndarray, np.ndarray, np.ndarray | float]
+def neg_temporal_coherence_with_jacobian(
+    x: np.ndarray,
+    amat: np.ndarray | csr_matrix | csc_matrix,
+    b: np.ndarray,
+    wts: np.ndarray | float,
 ) -> tuple[float, np.ndarray]:
-    """Temporal coherence with its Jacobian.
+    """Negative of temporal coherence with its Jacobian.
 
-    args[0]: matrixA
-    args[1]: b
-    args[2]: weight
+    We write the function as negative of temporal coherence, for ease
+    of use with scipy.minimize
     """
-    phase_diff = np.dot(args[0], x) - args[1]
-    cpdw = np.cos(phase_diff) * args[2]
-    spdw = np.sin(phase_diff) * args[2]
+    phase_diff = amat.dot(x) - b
+    cpdw = np.cos(phase_diff) * wts
+    spdw = np.sin(phase_diff) * wts
 
     t1 = np.sum(cpdw)
     t2 = np.sum(spdw)
     r = -np.sqrt(t1**2 + t2**2)
 
     t3 = 1.0 / (2.0 * r)
-    t4 = t1 * np.dot(np.transpose(args[0]), 2.0 * -spdw)
-    t5 = t2 * np.dot(np.transpose(args[0]), 2.0 * cpdw)
+    t4 = t1 * amat.T.dot(2.0 * -spdw)
+    t5 = t2 * amat.T.dot(2.0 * cpdw)
 
     return (r, t3 * (t4 + t5))

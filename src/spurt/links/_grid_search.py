@@ -7,7 +7,7 @@ import numpy as np
 from scipy import optimize
 
 from ..utils import get_cpu_count, logger
-from ._common import temporal_coherence
+from ._common import neg_temporal_coherence
 from ._interface import LinkModelInterface
 
 
@@ -163,7 +163,7 @@ def solve(
 ) -> tuple[np.ndarray, float]:
     """Actual call to the solver."""
     resbrute = optimize.brute(
-        temporal_coherence,
+        neg_temporal_coherence,
         rngs,
         args=(matrix, wdata, wts),
         full_output=True,
