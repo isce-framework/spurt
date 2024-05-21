@@ -50,7 +50,7 @@ def unwrap_tiles(
         logger.info(f"Time steps: {solver.nifgs}")
         logger.info(f"Number of points: {solver.npoints}")
 
-        uw_data = solver.unwrap_cube(wrap_data.data)
+        uw_data = solver.unwrap_cube(wrap_data)
         logger.info(f"Completed tile: {tt+1}")
 
         # Unwrapped data above is always referenced to first pixel
