@@ -40,7 +40,18 @@ class LinkModelInterface(Protocol):
     def ndim(self) -> int:
         """Return number of model parameters."""
 
+    def fwd_model(self, x: np.ndarray) -> np.ndarray:
+        """Return model evaluated at x."""
+
     def estimate_model(
-        self, wrapdata: np.ndarray, weights: np.ndarray | None = None
-    ) -> tuple[float | np.ndarray, np.ndarray, float]:
-        """Return estimated model parameters, reconstructed model and quality metric."""
+        self, wrapdata: np.ndarray, weights: np.ndarray | float | None = None
+    ) -> tuple[np.ndarray, float]:
+        """Return estimated model parameters and quality metric."""
+
+    def estimate_model_many(
+        self,
+        wrapdata: np.ndarray,
+        weights: np.ndarray | float | None = None,
+        worker_count: int = 0,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Estimate input for many models."""
