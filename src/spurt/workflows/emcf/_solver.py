@@ -214,7 +214,7 @@ class EMCFSolver:
                 if cyc[1] != 0:
                     grad_sum[:, cyc[1]] += cyc_dir[1] * grad_space[ii, i_start:i_end]
 
-            residues = np.rint(grad_sum / (2 * np.pi))
+            residues = np.rint(grad_sum / (2 * np.pi)).astype(int)
             # Set grounding node
             residues[:, 0] = -np.sum(residues[:, 1:], axis=1)
 
