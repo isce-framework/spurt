@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from dataclass import dataclass
 from numpy.typing import ArrayLike
 
 __all__ = [
@@ -50,7 +50,7 @@ class BBox:
 
     def tolist(self) -> list[int]:
         """List of integers in shapely convention."""
-        return [self.xmin, self.ymin, self.xmax, self.xmax]
+        return [self.xmin, self.ymin, self.xmax, self.ymax]
 
     @property
     def space(self) -> tuple[slice, slice]:
