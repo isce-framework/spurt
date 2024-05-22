@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import h5py
@@ -22,11 +21,11 @@ def unwrap_tiles(
     # Temporal graph
     s_time = spurt.mcf.ORMCFSolver(g_time)  # type: ignore[abstract]
 
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
-        tiledata = json.load(fid)
+    # Load tile set
+    tiledata = spurt.utils.TileSet.from_json(gen_settings.tiles_jsonname)
 
     # Iterate over tiles
-    for tt in range(len(tiledata["tiles"])):
+    for tt, tile in enumerate(tiledata.tiles):
         tfname = str(gen_settings.tile_filename(tt))
         if Path(tfname).is_file():
             logger.info(f"Tile {tt+1} already processed. Skipping...")
@@ -34,8 +33,7 @@ def unwrap_tiles(
 
         # Select valid pixels from coherence file
         logger.info(f"Processing tile: {tt+1}")
-        space = _bounds_to_space(tiledata["tiles"][tt]["bounds"])
-        coh = stack.read_temporal_coherence(space)
+        coh = stack.read_temporal_coherence(tile.space)
 
         # Create spatial graph and solver
         g_space = spurt.graph.DelaunayGraph(
@@ -45,7 +43,7 @@ def unwrap_tiles(
 
         # EMCF solver
         solver = EMCFSolver(s_space, s_time, solv_settings)
-        wrap_data = stack.read_tile(space)
+        wrap_data = stack.read_tile(tile.space)
         assert wrap_data.shape[1] == g_space.npoints
         logger.info(f"Time steps: {solver.nifgs}")
         logger.info(f"Number of points: {solver.npoints}")
@@ -60,10 +58,10 @@ def unwrap_tiles(
         # integer cycle shifts between tiles.
         ifgs = g_time.links
         phase_offset = spurt.mcf.utils.phase_diff(
-            wrap_data.data[ifgs[0, :], 0], wrap_data.data[ifgs[1, :], 0]
+            wrap_data.data[ifgs[:, 0], 0], wrap_data.data[ifgs[:, 1], 0]
         )
 
-        _dump_tile_to_h5(tfname, uw_data, phase_offset, g_space, tiledata["tiles"][tt])
+        _dump_tile_to_h5(tfname, uw_data, phase_offset, g_space, tile)
         logger.info(f"Wrote tile {tt + 1} to {tfname}")
         wrap_data = None
         uw_data = None
@@ -74,15 +72,10 @@ def _dump_tile_to_h5(
     uw: np.ndarray,
     off: np.ndarray,
     gspace: spurt.graph.PlanarGraphInterface,
-    tile: dict,
+    tile: spurt.utils.BBox,
 ) -> None:
     with h5py.File(fname, "w") as fid:
         fid["uw_data"] = uw
         fid["points"] = gspace.points.astype(np.int32)
-        fid["tile"] = np.array(tile["bounds"]).astype(np.int32)
+        fid["tile"] = np.array(tile.tolist()).astype(np.int32)
         fid["phase_offset"] = off.astype(np.float32)
-
-
-def _bounds_to_space(bounds):
-    """Shapely style bounds to numpy style slices."""
-    return (slice(bounds[0], bounds[2]), slice(bounds[1], bounds[3]))

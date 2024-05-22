@@ -233,14 +233,17 @@ def create_tiles_density(
 
     bounds = ((0, shape[0]), (0, shape[1]))
     splits = split_rectangle(points, bounds, max_tiles)
+    tiles = []
 
-    # Reorder indices
-    tiles = [
-        BBox.from_shapely_bounds(
-            [int(s[0][0]), int(s[1][0]), int(s[0][1]), int(s[1][1])]
-        )
-        for s in splits
-    ]
+    for s in splits:
+        # Reorder indices
+        t = [s[0][0], s[1][0], s[0][1], s[1][1]]
+        r0 = int(max(0, t[0]))
+        r1 = int(min(shape[0], t[2]))
+        c0 = int(max(0, t[1]))
+        c1 = int(min(shape[1], t[3]))
+
+        tiles.append(BBox.from_shapely_bounds([r0, c0, r1, c1]))
 
     return TileSet(shape, tiles)
 

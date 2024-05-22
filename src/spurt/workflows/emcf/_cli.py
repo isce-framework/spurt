@@ -99,7 +99,7 @@ def main(args=None):
     compute_overlap_stats(gen_settings, mrg_settings)
 
     # Compute bulk offsets
-    get_bulk_offsets(gen_settings, mrg_settings)
+    get_bulk_offsets(stack, gen_settings, mrg_settings)
 
     # Merge tiles and write output
     merge_tiles(stack, g_time, gen_settings, mrg_settings)

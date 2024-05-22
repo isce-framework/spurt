@@ -1,5 +1,3 @@
-import json
-
 import h5py
 import numpy as np
 from numpy.typing import ArrayLike
@@ -13,6 +11,7 @@ logger = spurt.utils.logger
 
 
 def get_bulk_offsets(
+    stack: spurt.io.SLCStackReader,
     gen_settings: GeneralSettings,
     mrg_settings: MergerSettings,
 ) -> None:
@@ -23,11 +22,10 @@ def get_bulk_offsets(
         return
 
     # Load tile info
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
-        tiledata = json.load(fid)
+    tiledata = spurt.utils.TileSet.from_json(gen_settings.tiles_jsonname)
 
     # Single tile processing
-    if len(tiledata["tiles"]) == 1:
+    if tiledata.ntiles == 1:
         logger.info("Single tile used. Skipping bulk offsets ...")
         return
 
@@ -49,8 +47,15 @@ def get_bulk_offsets(
 
     # Get number of bands to merge
     nbands = len(offsets[0])
-    ntiles = len(tiledata["tiles"])
-    counts = np.array([x["count"] for x in tiledata["tiles"]])
+    ntiles = tiledata.ntiles
+    counts = np.zeros(ntiles)
+
+    # Add counts of valid pixels in each tile
+    arr = stack.read_temporal_coherence(np.s_[:, :]) > stack.temp_coh_threshold
+    for ii, tile in enumerate(tiledata.tiles):
+        counts[ii] = np.sum(arr[tile.space])
+
+    print(counts)
 
     # If integer solver requested
     logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")

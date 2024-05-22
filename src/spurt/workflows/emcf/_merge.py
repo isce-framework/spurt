@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import h5py
@@ -24,12 +23,11 @@ def merge_tiles(
         raise NotImplementedError(errmsg)
 
     # Load tile json
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
-        tiledata = json.load(fid)
+    tiledata = spurt.utils.TileSet.from_json(gen_settings.tiles_jsonname)
 
     # Tile manager for each tile
     tiles: dict[int, Tile] = {}
-    for ii in range(len(tiledata["tiles"])):
+    for ii in range(tiledata.ntiles):
         # Use band 0 as place holder
         tiles[ii] = Tile(str(gen_settings.tile_filename(ii)), 0)
 
@@ -44,7 +42,7 @@ def merge_tiles(
     # Nothing to merge - just write to geotiff
     if len(tiles) == 1:
         logger.info(f"Writing single tile output to {gen_settings.output_folder}")
-        write_single_tile(tiles[0], fnames, tiledata["shape"])
+        write_single_tile(tiles[0], fnames, tiledata.shape)
         return
 
     # Create overmap lap for the graph
@@ -75,7 +73,7 @@ def merge_tiles(
         _adjust_tiles(tiles, overlap_map, gen_settings, max_degree, debug_stats=False)
 
         # Write file to output
-        write_merged_band(tiles, fname, ii, tiledata["shape"])
+        write_merged_band(tiles, fname, ii, tiledata.shape)
 
 
 def _adjust_tiles(
