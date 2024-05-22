@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import numpy as np
 
 import spurt
@@ -26,7 +23,7 @@ def get_tiles(
 
         # No tiles requested
         if not gen_settings.use_tiles:
-            _write_single_tile_json(arr, json_file)
+            tileset = spurt.utils.TileSet.single_tile(arr.shape)
 
         # Generate tiles and write
         else:
@@ -46,60 +43,18 @@ def get_tiles(
             ntiles = min(max(1, ntiles * ntiles), tile_settings.max_tiles)
             logger.info(f"Generating {ntiles} tiles.")
 
-            if ntiles > 1:
-                # Set up tiles
-                tiler = spurt.utils.DensityTiler(
-                    pts[::skip, :], shape=arr.shape, max_tiles=ntiles
-                )
+            # Set up tiles
+            tileset = spurt.utils.create_tiles_density(
+                pts[::skip, :], shape=arr.shape, max_tiles=ntiles
+            )
 
-                # Write tiles to json file
-                logger.info(f"Writing tiles to: {json_file!s}")
-                _write_tile_json(tiler, arr, json_file)
-            else:
-                _write_single_tile_json(arr, json_file)
+        # Dilate tiles to create overlaps
+        if (tileset.ntiles > 1) and (tile_settings.dilation_factor > 0.0):
+            tileset = tileset.dilate(tile_settings.dilation_factor)
+
+        # Write tiles to json file
+        logger.info(f"Writing tiles to: {json_file!s}")
+        tileset.to_json(json_file)
 
     else:
         logger.info(f"Using existing tiles file: {json_file!s}")
-
-
-def _write_tile_json(
-    tiler: spurt.utils.DensityTiler,
-    arr: np.ndarray,
-    fname: Path,
-) -> None:
-    """Write a json file with tile extents."""
-    jdata = {
-        "shape": arr.shape,
-        "neighbors": tiler.neighbors.tolist() if tiler.neighbors else [],
-        "tiles": [],
-    }
-    for tile in tiler.tiles:
-        tdata = {
-            "bounds": tile.tolist(),
-            "count": int(np.sum(arr[tile[0] : tile[2], tile[1] : tile[3]])),
-        }
-        jdata["tiles"].append(tdata)
-
-    with fname.open(mode="x") as fid:
-        fid.write(json.dumps(jdata, indent=4))
-
-    return
-
-
-def _write_single_tile_json(
-    arr: np.ndarray,
-    fname: Path,
-) -> None:
-    """Write a json file for single tile."""
-    jdata = {"shape": arr.shape, "neighbors": [], "tiles": []}
-    tdata = {
-        "bounds": [0, 0, arr.shape[0], arr.shape[1]],
-        "count": int(np.sum(arr)),
-    }
-    jdata["tiles"].append(tdata)
-
-    logger.info(f"Writing single tile json to {fname!s}")
-    with fname.open(mode="x") as fid:
-        fid.write(json.dumps(jdata, indent=4))
-
-    return

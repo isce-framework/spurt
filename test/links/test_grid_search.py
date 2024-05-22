@@ -63,7 +63,7 @@ def test_grid_estimate():
                 1j * (model.fwd_model([vv, dd]) + 0.01 * np.random.randn(model.nobs))
             )
 
-            # Estimat the parameters back
+            # Estimate the parameters back
             param, coh = model.estimate_model(np.angle(fwd))
 
             assert np.abs(vv - param[0]) < 15.0

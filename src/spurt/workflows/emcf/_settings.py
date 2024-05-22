@@ -110,15 +110,40 @@ class TilerSettings:
 
     Parameters
     ----------
-    target_points_per_tile: int
-        Target points per tile when generating tiles.
     max_tiles: int
         Maximum number of tiles allowed.
+    target_points_for_generation: int
+        Number of points used for determining tiles based on density.
+    target_points_per_tile: int
+        Target points per tile when generating tiles.
+    dilation_factor: float
+        Dilation factor of non-overlapping tiles. 0.05 would lead to
+        10 percent dilation of the tile.
     """
 
     max_tiles: int = 16
     target_points_for_generation: int = 120000
     target_points_per_tile: int = 800000
+    dilation_factor: float = 0.05
+
+    def __post_init__(self):
+        if self.max_tiles < 1:
+            errmsg = f"max_tiles must be atleast 1, got {self.max_tiles}"
+            raise ValueError(errmsg)
+        if self.dilation_factor < 0.0:
+            errmsg = f"dilation_factor must be >= 0., got {self.dilation_factor}"
+            raise ValueError(errmsg)
+        if self.target_points_for_generation <= 0:
+            errmsg = (
+                "target_points_for_generation must be > 0,"
+                f" got {self.target_points_for_generation}"
+            )
+            raise ValueError(errmsg)
+        if self.target_points_per_tile <= 0.0:
+            errmsg = (
+                f"target_points_per_tile must be > 0, got {self.target_points_per_tile}"
+            )
+            raise ValueError(errmsg)
 
 
 @dataclass
