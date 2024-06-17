@@ -10,11 +10,17 @@ from ._settings import GeneralSettings, MergerSettings
 logger = spurt.utils.logger
 
 
-def compute_overlap_stats(
+def compute_phasediff_deciles(
     gen_settings: GeneralSettings,
     mrg_settings: MergerSettings,
 ) -> None:
-    """Compute overlap stats and save to h5."""
+    """Compute overlap phase difference stats and save to h5.
+
+    We compute histograms of phase difference between overlapping tiles.
+    While we only use a constant bulk offset for reconciling differences, these
+    histograms can be used for debugging and assessing quality of consistency
+    betwen unwrapped results of individual tiles.
+    """
     # Check if already processed
     if gen_settings.overlap_filename.is_file():
         logger.info("Overlap file already exists. Skipping ...")
@@ -60,7 +66,7 @@ def compute_overlap_stats(
         # difference stats
         cuw1 = uw1[:, c1]
         cuw2 = uw2[:, c2]
-        stats = spurt.utils.merge.pairwise_unwrapped_diff(cuw1, cuw2)
+        stats = spurt.utils.merge.pairwise_unwrapped_diff_deciles(cuw1, cuw2)
         grpname = gen_settings.overlap_groupname(t1, t2)
         with h5py.File(overlap_file, "a") as fid:
             grp = fid.create_group(grpname)

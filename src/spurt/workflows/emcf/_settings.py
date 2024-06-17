@@ -64,6 +64,8 @@ class GeneralSettings:
     ----------
     use_tiles: bool
         Tile up data spatially.
+    intermediate_folder: str
+        Path to folder where intermediate outputs are created.
     output_folder: str
         Path to output folder.
     """
@@ -110,20 +112,23 @@ class TilerSettings:
 
     Parameters
     ----------
+    target_points_per_tile: int
+        Target points per tile when generating tiles.
     max_tiles: int
         Maximum number of tiles allowed.
     target_points_for_generation: int
         Number of points used for determining tiles based on density.
-    target_points_per_tile: int
-        Target points per tile when generating tiles.
+        If input has a lot of points, tiling can take a really long time.
+        We use this as a guide to downsample inputs to generate tile
+        boundaries. The tile boundaries are then used with full set of inputs.
     dilation_factor: float
         Dilation factor of non-overlapping tiles. 0.05 would lead to
         10 percent dilation of the tile.
     """
 
+    target_points_per_tile: int = 800000
     max_tiles: int = 16
     target_points_for_generation: int = 120000
-    target_points_per_tile: int = 800000
     dilation_factor: float = 0.05
 
     def __post_init__(self):
@@ -158,7 +163,8 @@ class MergerSettings:
     method: str
         Currently, only "dirichlet" is supported.
     bulk_method: str
-        Method used to estimate bulk offset between tiles.
+        Method used to estimate bulk offset between tiles. Supported methods
+        are 'integer' and 'L2'.
     """
 
     min_overlap_points: int = 25

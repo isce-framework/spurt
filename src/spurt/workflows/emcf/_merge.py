@@ -123,7 +123,7 @@ def _adjust_tiles(
                 np.zeros(s.size),
                 raw_correction,
                 c >= overlap_degree,
-                logger=logger,
+                enable_logging=True,
             )[0]
 
             tile_i.add_correction(correction.astype(np.float32))

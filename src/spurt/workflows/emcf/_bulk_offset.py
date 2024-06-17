@@ -15,7 +15,12 @@ def get_bulk_offsets(
     gen_settings: GeneralSettings,
     mrg_settings: MergerSettings,
 ) -> None:
+    """Compute bulk phase offsets between overlapping tiles.
 
+    We compute the bulk offset used to adjust individually unwrapped tiles in
+    the merge process. While we computed phase difference deciles, we only use
+    the median phase difference here for adjusting tiles.
+    """
     # Check if offsets already computed
     if gen_settings.offsets_filename.is_file():
         logger.info("Offsets file already exists. Skipping ...")
@@ -55,8 +60,6 @@ def get_bulk_offsets(
     for ii, tile in enumerate(tiledata.tiles):
         counts[ii] = np.sum(arr[tile.space])
 
-    print(counts)
-
     # If integer solver requested
     logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")
     if mrg_settings.bulk_method == "integer":
@@ -73,8 +76,6 @@ def get_bulk_offsets(
     # Use L2 method
     elif mrg_settings.bulk_method == "L2":
         # These can be floating point
-        bulk_offset = np.zeros((nbands, ntiles))
-        obj = np.zeros(nbands)
         off = np.zeros((len(overlaps), nbands))
         for ii in range(len(overlaps)):
             off[ii, :] = offsets[ii]
@@ -89,13 +90,35 @@ def get_bulk_offsets(
     with h5py.File(str(gen_settings.offsets_filename), "w") as fid:
         grp = fid.create_group(mrg_settings.bulk_method)
         grp["offsets"] = bulk_offset
-        grp["residues"] = obj
+        grp["residuals"] = obj
 
 
 def _solve_l2_min(
     olaps: ArrayLike, off: ArrayLike, ntiles: int, counts: ArrayLike
 ) -> tuple[np.ndarray, float]:
-    """Return minimum L2 solution."""
+    """Return minimum L2 solution for offsets between tiles.
+
+    Parameters
+    ----------
+    olaps: array
+        Integer array of size (noverlaps, 2) with each row containing tile
+        indices.
+    off: array
+        Integer array of length noverlaps indicating integer offsets for
+        corresponding overlap.
+    counts: array
+        Integer array of length ntiles indicating number of valid pixels in
+        each tile.
+
+    Returns
+    -------
+    x: array
+        Floating point array of size ntiles containing number of cycles to be added to
+        individually unwrapped tiles before merging.
+     val: float
+        L1 norm of residuals from each overlapping tile pair. A non-zero value is an
+        indication of possible inconsistency.
+    """
     nlinks: int = len(olaps)
     # Create the system to solve
     cmat = np.zeros((nlinks, ntiles))
@@ -118,24 +141,45 @@ def _solve_l2_min(
 def _solve_int_offsets(
     olaps: ArrayLike, labels: ArrayLike, off: ArrayLike, counts: ArrayLike
 ) -> tuple[np.ndarray, int]:
-    """Solve bulk offset problem."""
+    """Solve bulk offset problem using MIP solver.
+
+    Parameters
+    ----------
+    olaps: array
+        Integer array of size (noverlaps, 2) with each row containing tile indices.
+    off: array
+        Integer array of length noverlaps indicate integer offsets for corresponding
+        overlap.
+    counts: array
+        Integer array of length ntiles indicating number of valid pixels in each tile.
+
+    Returns
+    -------
+    x: array
+        Integer array of size ntiles containing number of cycles to be added to
+        individually unwrapped tiles before merging.
+    val: int
+        L1 norm of flows for each overlapping tile pair. A non-zero value is an
+        indication of possible inconsistency.
+    """
     npts: int = len(labels)
     nlinks: int = len(olaps)
+    int32_max = np.iinfo(np.int32).max
     solver = pywraplp.Solver.CreateSolver("SAT")
 
     # Node cycle offsets
     ns = []
     for ii in range(npts):
         varname = f"n_{ii:02d}"
-        ns.append(solver.IntVar(-100000, 100000, varname))
+        ns.append(solver.IntVar(-int32_max, int32_max, varname))
 
     # Flow variables
     pf = []
     nf = []
     for pair in olaps:
         t1, t2 = pair
-        pf.append(solver.IntVar(0, 20, f"pf_{t1:02d}_{t2:02d}"))
-        nf.append(solver.IntVar(0, 20, f"nf_{t1:02d}_{t2:02d}"))
+        pf.append(solver.IntVar(0, int32_max, f"pf_{t1:02d}_{t2:02d}"))
+        nf.append(solver.IntVar(0, int32_max, f"nf_{t1:02d}_{t2:02d}"))
 
     # Add constraints from offsets
     for ind in range(nlinks):
@@ -167,7 +211,6 @@ def _solve_int_offsets(
         raise RuntimeError(errmsg)
 
     val: int = obj.Value()
-    if val != 0:
-        logger.info(f"Non-zero flow correction: {val}")
+    logger.info(f"Estimated flow correction: {val}")
 
     return np.array([x.solution_value() for x in ns], dtype=np.int32), val

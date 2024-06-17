@@ -4,7 +4,7 @@ import spurt
 
 from ._bulk_offset import get_bulk_offsets
 from ._merge import merge_tiles
-from ._overlap import compute_overlap_stats
+from ._overlap import compute_phasediff_deciles
 from ._settings import GeneralSettings, MergerSettings, SolverSettings, TilerSettings
 from ._tiling import get_tiles
 from ._unwrap import unwrap_tiles
@@ -20,7 +20,10 @@ def main(args=None):
     )
     parser.add_argument("--version", action="version", version=spurt.__version__)
     parser.add_argument(
-        "-i", "--inputdir", help="Input folder with phase-linked SLC stack."
+        "-i",
+        "--inputdir",
+        help="Input folder with phase-linked SLC stack.",
+        required=True,
     )
     parser.add_argument(
         "-o",
@@ -96,7 +99,7 @@ def main(args=None):
     unwrap_tiles(stack, g_time, gen_settings, slv_settings)
 
     # Compute overlap stats
-    compute_overlap_stats(gen_settings, mrg_settings)
+    compute_phasediff_deciles(gen_settings, mrg_settings)
 
     # Compute bulk offsets
     get_bulk_offsets(stack, gen_settings, mrg_settings)

@@ -63,8 +63,6 @@ def unwrap_tiles(
 
         _dump_tile_to_h5(tfname, uw_data, phase_offset, g_space, tile)
         logger.info(f"Wrote tile {tt + 1} to {tfname}")
-        del wrap_data
-        del uw_data
 
 
 def _dump_tile_to_h5(

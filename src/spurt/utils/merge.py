@@ -9,6 +9,8 @@ from scipy.sparse import csc_matrix, csr_matrix
 from scipy.sparse.linalg import LinearOperator, cg, spilu
 from scipy.sparse.linalg import lsqr as lsq_sparse
 
+from ._logger import logger
+
 
 def find_common_points(c1: np.ndarray, c2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -23,12 +25,18 @@ def find_common_points(c1: np.ndarray, c2: np.ndarray) -> tuple[np.ndarray, np.n
 
     Returns
     -------
-    ii : list[int]
+    ii : array[int]
         Indices of c1 that overlaps c1
-    jj : list[int]
+    jj : array[int]
         Indices of c2 that overlaps c2, i.e. c1[ii] == c2[jj]
     """
-    assert min(np.min(c1), np.min(c2)) >= 0
+    if np.min(c1) < 0:
+        errmsg = "First set of coordinates contains negative values"
+        raise ValueError(errmsg)
+
+    if np.min(c2) < 0:
+        errmsg = "Second set of coordinates contains negative values"
+        raise ValueError(errmsg)
 
     m = 1 + max(np.amax(c1[:, 1]), np.amax(c2[:, 1]))
     fc1 = c1[:, 0] * m + c1[:, 1]
@@ -36,8 +44,8 @@ def find_common_points(c1: np.ndarray, c2: np.ndarray) -> tuple[np.ndarray, np.n
     return np.intersect1d(fc1, fc2, return_indices=True)[1:]
 
 
-def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
-    """Stats for pairwise unwrapped differences.
+def pairwise_unwrapped_diff_deciles(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
+    """Deciles for pairwise unwrapped differences.
 
     Given two sets of unwrapped phases that differ by integer cycles of 2pi,
     Create a histogram from 0-100 percentile in steps of 10.
@@ -76,19 +84,15 @@ def pairwise_unwrapped_diff(b1: np.ndarray, b2: np.ndarray) -> np.ndarray:
     # Check that we are close to integers
     assert np.allclose(diff, nint, atol=0.01), "Arrays differ by non-integer cycles"
 
-    # Indices into a sorted array
-    inds = (np.linspace(0, 1.0, 11) * b1.shape[1]).astype(int)
-    inds = np.clip(inds, 0, b1.shape[1] - 1)
-
-    # Sort the differences
-    diff = np.sort(nint, axis=-1)
-
-    # Return histogram
-    return diff[:, inds].copy()
+    deciles = np.linspace(0.0, 100.0, 11)
+    return np.percentile(nint, deciles, axis=-1).T
 
 
 def l2_min(
-    amat: np.ndarray | csr_matrix | csc_matrix, b: np.ndarray, logger: Any | None = None
+    amat: np.ndarray | csr_matrix | csc_matrix,
+    b: np.ndarray,
+    *,
+    enable_logging: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Find x so that Ax-b has least L2 norm.
@@ -99,8 +103,8 @@ def l2_min(
         System to solve. This can be a dense or sparse matrix.
     b : vector-like
         Right-hand side.
-    logger : logger-like
-        Optional, Logger to which diagnostic messages will be sent.
+    enable_logging : bool
+        Optional, Enable logger to capture diagnostic messages.
 
     Returns
     -------
@@ -110,7 +114,7 @@ def l2_min(
         Ax - b
     """
     if np.size(amat) == 0:
-        if logger:
+        if enable_logging:
             logger.warning("A is empty; returning all zeros")
         return np.zeros(amat.shape[1]), np.zeros(amat.shape[0])
 
@@ -127,7 +131,8 @@ def l2_min(
 def l2_min_cg(
     amat: Any,
     b: np.ndarray,
-    logger: Any | None = None,
+    *,
+    enable_logging: bool = False,
     x0: np.ndarray | None = None,
     maxiter: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, Any]:
@@ -147,8 +152,8 @@ def l2_min_cg(
         Sparse real system to solve.
     b : vector-like
         Right-hand side.
-    logger : logger-like
-        Optional, logger to which diagnostic messages will be sent.
+    enable_logging : bool
+        Optional, Enable logger to capture diagnostic messages.
     x0 : vector-like
         Optional, initial guess
     maxiter : integer
@@ -166,12 +171,12 @@ def l2_min_cg(
     assert amat.shape[0] == b.shape[0]
 
     if np.size(amat) == 0:
-        if logger:
+        if enable_logging:
             logger.warning("A is empty; returning all zeros")
         return np.zeros(amat.shape[1]), np.zeros(amat.shape[0]), None
 
     if np.all(b == 0):
-        if logger:
+        if enable_logging:
             logger.info("b is identically zero, returning zero")
         return np.zeros(amat.shape[1]), np.zeros(amat.shape[0]), None
 
@@ -218,7 +223,7 @@ def l2_min_cg(
     # 1 and 2 above.
     rn = rhs - np.dot(mat, x) if use_normal_eqs else None
 
-    if logger is not None:
+    if enable_logging is not None:
         if maxiter is not None:
             logger.info(f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}. ")
             if use_normal_eqs:
@@ -241,7 +246,8 @@ def dirichlet(
     b: np.ndarray,
     xf: np.ndarray,
     mask: np.ndarray,
-    logger: Any | None = None,
+    *,
+    enable_logging: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Find x that minimizes Ax - b in an L2 sense, subject to x[mask] == xf[mask].
 
@@ -257,6 +263,8 @@ def dirichlet(
         Fixed data, only xf[mask] is significant as input.
     mask : array-like[m] of bool
         mask[i] is true if x[i] should be forced to equal xf[i]
+    enable_logging: bool
+        Optional, enable logger to capture diagnostic messages.
 
     Returns
     -------
@@ -272,7 +280,10 @@ def dirichlet(
     x = np.zeros(xf.size)
 
     x[~mask] = l2_min_cg(
-        amat[:, ~mask][~mask, :], rhs[~mask], maxiter=100, logger=logger
+        amat[:, ~mask][~mask, :],
+        rhs[~mask],
+        maxiter=100,
+        enable_logging=enable_logging,
     )[0]
     x[mask] = xf[mask]
 

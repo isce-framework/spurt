@@ -54,7 +54,7 @@ class BBox:
 
     @property
     def space(self) -> tuple[slice, slice]:
-        """Slice notation for use with numpy arrays."""
+        """Slice notation for use with NumPy arrays."""
         return (slice(self.xmin, self.xmax), slice(self.ymin, self.ymax))
 
     @property

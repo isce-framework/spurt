@@ -14,6 +14,16 @@ class Tile:
     """Utility class for managing one unwrapped tile."""
 
     def __init__(self, fname: str, bandidx: int):
+        """Handle one tile of unwrapped output.
+
+        Parameters
+        ----------
+        fname: str
+            Filename of intermediate HDF5 file with output for one unwrapped
+            tile.
+        bandidx: int
+            0-based band index used to slice the output in time dimension.
+        """
         self._fname: str = fname
         self._idx: int = bandidx
         self._corrections: list[Any] = []
@@ -22,14 +32,17 @@ class Tile:
 
     @property
     def idx(self) -> int:
+        """Band index currently being tracked."""
         return self._idx
 
     @property
     def correction_level(self) -> int:
+        """Correction level being tracked."""
         return self._correction_level
 
     @property
     def coords(self) -> np.ndarray:
+        """Point coordinates in global grid."""
         with h5py.File(self._fname, mode="r") as fid:
             pts = fid["/points"][...]
             tile = fid["/tile"][...]
@@ -37,6 +50,7 @@ class Tile:
         return pts + tile[None, :2]
 
     def get_uw_phase(self, level: int) -> np.ndarray:
+        """Unwrapped phase with corrections applied to specified level."""
         with h5py.File(self._fname, mode="r") as fid:
             uw_data: np.ndarray = fid["/uw_data"][self._idx, :]
             offset: float = fid["/phase_offset"][self._idx]
@@ -44,15 +58,17 @@ class Tile:
         return sum([uw_data + offset] + self._corrections[:level])
 
     def get_corrections_sum(self, level: int) -> np.ndarray:
+        """Corrections to unwrapped phase up to a specified level."""
         return sum(self._corrections[:level])
 
     @property
     def corrections(self) -> np.ndarray:
+        """Correction up to the current level."""
         return self.get_corrections_sum(self._correction_level)
 
     @property
     def uw_phase(self) -> np.ndarray:
-        """Return corrections summed up to a level."""
+        """Return corrections summed up to the current level."""
         return self.get_uw_phase(self._correction_level)
 
     @property
@@ -62,6 +78,7 @@ class Tile:
 
     @property
     def graph_laplacian(self) -> Any:
+        """Graph laplacian for the tile."""
         if self._graph_laplacian is not None:
             return self._graph_laplacian
 
@@ -70,6 +87,7 @@ class Tile:
         return self._graph_laplacian
 
     def add_correction(self, a) -> None:
+        """Add a constant or pixel-by-pixel correction."""
         if isinstance(a, numbers.Number) or (
             isinstance(a, np.ndarray) and a.size == self.coords.shape[0]
         ):
@@ -79,13 +97,16 @@ class Tile:
             raise ValueError(errmsg)
 
     def reset_corrections(self) -> None:
+        """Reset corrections to reuse object with another band index."""
         self._correction_level = 0
         self._corrections = []
 
     def increment_correction(self) -> None:
+        """Increment current correction level."""
         self._correction_level += 1
 
     def compress_corrections(self) -> None:
+        """Compress corrections to single level to reduce memory usage."""
         if len(self._corrections) > 1:
             self._corrections[0] += self._corrections.pop()
 
@@ -94,6 +115,7 @@ class Tile:
             raise RuntimeError(errmsg)
 
     def reset_band_index(self, newidx: int) -> None:
+        """Change current band index."""
         self._idx = newidx
         # This needs to be reset since we are looking at a new band now
         self.reset_corrections()
@@ -104,7 +126,7 @@ def write_single_tile(
     fnames: list[Path],
     shape: tuple[int, int],
 ) -> None:
-    """Write a single tile as geotiffs to output file."""
+    """Write a single tile as GeoTIFFs to output file."""
     # Get indices of the interferograms
     coords = tile.coords
 
