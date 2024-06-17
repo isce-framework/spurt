@@ -30,7 +30,6 @@ dependencies = [
   "ortools==9.8.3296",
   "rasterio>=1.2",
   "h5py>=3.6",
-  "tqdm>=4.60",
 ]
 dynamic = ["version"]
 

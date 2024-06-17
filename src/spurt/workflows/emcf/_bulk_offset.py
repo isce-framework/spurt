@@ -143,6 +143,10 @@ def _solve_int_offsets(
 ) -> tuple[np.ndarray, int]:
     """Solve bulk offset problem using MIP solver.
 
+    We use the most generic formulation here similar to edgelist unwrapping as
+    the size of the problems are expected to be small and lets us overcome any
+    assumptions about planar graphs when looking at all possible overlaps.
+
     Parameters
     ----------
     olaps: array
