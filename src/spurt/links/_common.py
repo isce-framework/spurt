@@ -32,7 +32,7 @@ def temporal_coherence_with_jac(
     r = -np.sqrt(t1**2 + t2**2)
 
     t3 = 1.0 / (2.0 * r)
-    t4 = t1 * args[0].T.dot(2.0 * -spdw)  # type: ignore[attr-defined]
-    t5 = t2 * args[0].T.dot(2.0 * cpdw)  # type: ignore[attr-defined]
+    t4 = t1 * np.dot(np.transpose(args[0]), 2.0 * -spdw)
+    t5 = t2 * np.dot(np.transpose(args[0]), 2.0 * cpdw)
 
     return (r, t3 * (t4 + t5))

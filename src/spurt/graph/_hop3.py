@@ -27,7 +27,7 @@ class Hop3Graph(PlanarGraphInterface):
             raise ValueError(errmsg)
 
         # Create the points as a colinear set
-        self._xy = np.zeros((npoints, 2), dtype=int)
+        self._xy: np.ndarray = np.zeros((npoints, 2), dtype=int)
         self._xy[:, 0] = np.arange(npoints, dtype=int)
 
         # Initialize to none

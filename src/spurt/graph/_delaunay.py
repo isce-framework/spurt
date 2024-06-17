@@ -23,7 +23,7 @@ class DelaunayGraph(PlanarGraphInterface):
 
     def __init__(self, xy: np.ndarray, scaling: ArrayLike = (1, 1)):
         """Create Delaunay triangulation with given coordinates and scaling."""
-        self._d = Delaunay(xy * scaling)
+        self._d: Delaunay = Delaunay(xy * scaling)
         assert self._d.npoints == len(xy), "Number of points mismatch"
         self._links: np.ndarray | None = None
         self._create_links()

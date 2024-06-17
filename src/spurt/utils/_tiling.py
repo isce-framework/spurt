@@ -93,7 +93,7 @@ class RegularTiler(TilerInterface):
             return
 
         aspect = self._shape[1] / self._shape[0]
-        tiles_per_dim = int(
+        tiles_per_dim: int = int(
             self._shape[0]
             / np.sqrt(self._shape[0] * self._shape[1] / (self._max_tiles * aspect))
         )

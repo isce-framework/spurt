@@ -28,14 +28,13 @@ dependencies = [
   "numpy>=1.23",
   "scipy>=1.9",
   "ortools==9.8.3296",
+  "rasterio>=1.2",
+  "h5py>=3.6",
+  "tqdm>=4.60",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-raster = [
-  "rasterio>=1.2",
-  "pyogrio>=0.7"
-]
 test = [
   "pytest>=6",
   "pytest-cov>=3"

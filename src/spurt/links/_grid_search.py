@@ -6,7 +6,7 @@ from multiprocessing import get_context
 import numpy as np
 from scipy import optimize
 
-from ..utils import get_cpu_count
+from ..utils import get_cpu_count, logger
 from ._common import temporal_coherence
 from ._interface import LinkModelInterface
 
@@ -109,36 +109,39 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
                 )
                 raise ValueError(errmsg)
                 const_weights = False
+                arr_weights: np.ndarray = weights
 
             if weights.shape[0] != self.nobs:
                 errmsg = f"Weights shape mismatch. Got {weights.shape} vs {self.nobs}"
                 raise ValueError(errmsg)
 
         # Return arrays
-        nruns = wrapdata.shape[1]
-        params = np.zeros((self.ndim, nruns))
-        tcoh = np.zeros(nruns)
+        nruns: int = wrapdata.shape[1]
+        params: np.ndarray = np.zeros((self.ndim, nruns))
+        tcoh: np.ndarray = np.zeros(nruns)
 
         # Run sequentially when only 1 worker available
         if worker_count == 1:
             for ii in range(nruns):
+                wts = weights if const_weights else arr_weights[:, ii]
                 res = self.estimate_model(
                     wrapdata[:, ii],
-                    (weights if const_weights else weights[:, ii]),  # type: ignore[index]
+                    wts,
                 )
                 params[:, ii] = res[0]
                 tcoh[ii] = res[1]
         else:
-            print(f"Modeling batch of {nruns} with {worker_count} threads")
+            logger.info(f"Modeling batch of {nruns} with {worker_count} threads")
 
             def inv_inputs(idxs):
                 for ii in idxs:
+                    wts = weights if const_weights else arr_weights[:, ii]
                     yield (
                         ii,
                         self.matrix,
                         self.ranges,
                         wrapdata[:, ii],
-                        (weights if const_weights else weights[:, ii]),  # type: ignore[index]
+                        wts,
                     )
 
             # Create a pool and dispatch
