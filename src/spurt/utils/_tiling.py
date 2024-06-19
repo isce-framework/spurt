@@ -88,7 +88,7 @@ class TileSet:
 
     @classmethod
     def from_json(cls, fname: Path) -> TileSet:
-        """Load tiles from a json file."""
+        """Load tiles from a JSON file."""
         with fname.open(mode="r") as fid:
             jdict = json.load(fid)
 
@@ -97,10 +97,10 @@ class TileSet:
         for tt in jdict["tiles"]:
             tiles.append(BBox.from_shapely_bounds(tt["bounds"]))
 
-        return TileSet(shape, tiles)
+        return cls(shape, tiles)
 
     def to_json(self, fname: Path) -> None:
-        """Write tiles to a json file."""
+        """Write tiles to a JSON file."""
         tiles = []
         for tt in self.tiles:
             tiles.append({"bounds": tt.tolist()})
@@ -115,7 +115,7 @@ class TileSet:
     @classmethod
     def single_tile(cls, shape: tuple[int, int]) -> TileSet:
         """Return tileset with single tile corresponding to shape."""
-        return TileSet(shape, [BBox.from_shapely_bounds((0, 0, shape[0], shape[1]))])
+        return cls(shape, [BBox.from_shapely_bounds((0, 0, shape[0], shape[1]))])
 
     def get_overlaps(self) -> list[tuple[int, int]]:
         """Return list of pairs of overlapping tiles."""
@@ -144,7 +144,7 @@ class TileSet:
             c0 = int(max(0, tt.ymin - factor * cdiff))
             c1 = int(min(shape[1], tt.ymax + factor * cdiff))
 
-            tiles.append(BBox.from_shapely_bounds([r0, c0, r1, c1]))
+            tiles.append(BBox(r0, c0, r1, c1))
 
         return TileSet(shape, tiles)
 

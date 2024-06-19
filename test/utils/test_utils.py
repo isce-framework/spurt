@@ -8,7 +8,7 @@ import spurt
 def test_cpu_count():
     ncpu = spurt.utils.get_cpu_count()
 
-    # Check that atleast one is returned
+    # Check that at least one is returned
     assert ncpu >= 1
 
 

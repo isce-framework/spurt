@@ -14,8 +14,8 @@ def get_tiles(
 ) -> None:
     """Generate tiles based on settings.
 
-    Create a json file with tile information in the intermediate folder.
-    Tiles are not regenerated if a json file is already present.
+    Create a JSON file with tile information in the intermediate folder.
+    Tiles are not regenerated if the JSON file is already present.
     """
     json_file = gen_settings.tiles_jsonname
 

@@ -133,7 +133,7 @@ class TilerSettings:
 
     def __post_init__(self):
         if self.max_tiles < 1:
-            errmsg = f"max_tiles must be atleast 1, got {self.max_tiles}"
+            errmsg = f"max_tiles must be at least 1, got {self.max_tiles}"
             raise ValueError(errmsg)
         if self.dilation_factor < 0.0:
             errmsg = f"dilation_factor must be >= 0., got {self.dilation_factor}"

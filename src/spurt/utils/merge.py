@@ -203,7 +203,7 @@ def l2_min_cg(
         M=LinearOperator(mat.shape, pre.solve),
     )
 
-    if info < 0 and logger is not None:
+    if info < 0 and enable_logging:
         logger.error("Something bad happened with CG!")
         return x0, None, pre
 
@@ -223,7 +223,7 @@ def l2_min_cg(
     # 1 and 2 above.
     rn = rhs - np.dot(mat, x) if use_normal_eqs else None
 
-    if enable_logging is not None:
+    if enable_logging:
         if maxiter is not None:
             logger.info(f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}. ")
             if use_normal_eqs:

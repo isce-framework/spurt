@@ -13,7 +13,7 @@ def test_dirichlet():
     cutoff = -1
 
     # Choose points with an x-value below cutoff to be the fixed (boundary)
-    # values. Choose 1 for poisitive y-values and -1 for negative y-values.
+    # values. Choose 1 for positive y-values and -1 for negative y-values.
     mask = pts[:, 0] < cutoff
 
     pt_data = np.zeros(pts.shape[0])

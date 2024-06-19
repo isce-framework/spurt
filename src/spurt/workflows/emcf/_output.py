@@ -174,7 +174,7 @@ def write_merged_band(
         return
 
     # check that we are looking at the same band in all tiles
-    for _, tile in tiles.items():
+    for tile in tiles.values():
         assert tile.idx == idx, "Band index mismatch"
         assert tile.correction_level == 1, "Only one offset supported"
 
@@ -185,7 +185,7 @@ def write_merged_band(
     maxval = np.full(shape, -np.inf, dtype=np.float32)
 
     # Now iterate over tiles and compute average
-    for _, tile in tiles.items():
+    for tile in tiles.values():
         coords = tile.coords.astype(np.int32)
         c0 = coords[:, 0]
         c1 = coords[:, 1]
@@ -194,8 +194,8 @@ def write_merged_band(
         minval[c0, c1] = np.minimum(data, minval[c0, c1])
         maxval[c0, c1] = np.maximum(data, maxval[c0, c1])
 
-        model[coords[:, 0], coords[:, 1]] += tile.uw_phase
-        cnt[coords[:, 0], coords[:, 1]] += 1
+        model[c0, c1] += tile.uw_phase
+        cnt[c0, c1] += 1
 
     mask = cnt != 0
     model[~mask] = np.nan
@@ -206,7 +206,7 @@ def write_merged_band(
 
     # Now iterate over tiles and wrap around model
     arr = np.full(shape, np.nan, dtype=np.float32)
-    for _, tile in tiles.items():
+    for tile in tiles.values():
         coords = tile.coords.astype(np.int32)
         c0 = coords[:, 0]
         c1 = coords[:, 1]

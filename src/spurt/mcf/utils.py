@@ -38,9 +38,7 @@ def sign_nonzero(x: float) -> int:
     return -1
 
 
-def flood_fill(
-    indata: np.ndarray, links: np.ndarray, flows: np.ndarray, mode: str | None = None
-):
+def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray, mode: str):
     """Flood fill unwrapping.
 
     Given input data and links for those links start at an arbitrary point
@@ -68,16 +66,12 @@ def flood_fill(
     unwrapped : np.ndarray
         Unwrapped phase in radians. Same size as indata.
     """
-    if mode is None:
-        errmsg = "mode must be set to points or gradients."
-        raise ValueError(errmsg)
-
     if len(links) != len(flows):
         errmsg = f"Dimension mismatch - {links.shape} vs {flows.shape}"
         raise ValueError(errmsg)
 
     if mode not in ["points", "gradients"]:
-        errmsg = f"mode can be points or gradients. got {mode}"
+        errmsg = f"mode can be 'points' or 'gradients'. got {mode}"
         raise ValueError(errmsg)
 
     npts = np.max(links) + 1
