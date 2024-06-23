@@ -3,11 +3,8 @@ import numpy as np
 import spurt
 
 
-def gen_data_real(add_eq: bool | None = None):
+def gen_data_real(*, add_eq: bool = False):
     """Generate a regular 3D dataset"""
-
-    if add_eq is None:
-        add_eq = False
 
     n_collects = 20
     y, x = np.ogrid[-3:3:64j, -3:3:64j]

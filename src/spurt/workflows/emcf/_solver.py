@@ -16,9 +16,9 @@ class EMCFSolver:
     """Implementation of the EMCF algorithm.
 
     Implements the Extended Minimum Cost Flow (EMCF) algorithm for
-    phase unwrapping [1]_. We only implement the solver framework as the graph
-    generation and cost function implementations are not exactly replicable
-    without more details.
+    phase unwrapping [1]_. We only implement the solver framework [2]_ as the
+    graph generation and cost function implementations are not exactly
+    replicable without more details.
 
     References
     ----------
@@ -27,6 +27,9 @@ class EMCFSolver:
        SAR Interferograms," in IEEE Transactions on Geoscience and Remote
        Sensing, vol. 44, no. 9, pp. 2374-2383, Sept. 2006,
        doi: 10.1109/TGRS.2006.873207.
+    .. [2] K. M. Olsen, M. T. Calef and P. S. Agram, "Contextual uncertainty
+           assessments for InSAR-based deformation retrieval using an ensemble
+           approach" in Remote Sensing of Environment, 287, p.113456. 2023.
     """
 
     def __init__(
@@ -211,7 +214,7 @@ class EMCFSolver:
                 if cyc[1] != 0:
                     grad_sum[:, cyc[1]] += cyc_dir[1] * grad_space[ii, i_start:i_end]
 
-            residues = np.rint(grad_sum / (2 * np.pi))
+            residues = np.rint(grad_sum / (2 * np.pi)).astype(int)
             # Set grounding node
             residues[:, 0] = -np.sum(residues[:, 1:], axis=1)
 
@@ -267,7 +270,9 @@ class EMCFSolver:
             flows = self._solver_space.residues_to_flows(residues, cost)
 
             # Flood fill
-            uw_data[ii, :] = utils.flood_fill(ifg_grad, self._solver_space.edges, flows)
+            uw_data[ii, :] = utils.flood_fill(
+                ifg_grad, self._solver_space.edges, flows, mode="gradients"
+            )
 
         return uw_data
 

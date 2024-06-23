@@ -30,7 +30,6 @@ dependencies = [
   "ortools==9.8.3296",
   "rasterio>=1.2",
   "h5py>=3.6",
-  "tqdm>=4.60",
 ]
 dynamic = ["version"]
 
@@ -44,6 +43,10 @@ test = [
 Discussions = "https://github.com/isce-framework/spurt/discussions"
 Homepage = "https://github.com/isce-framework/spurt"
 Issues = "https://github.com/isce-framework/spurt/issues"
+
+# Entry points for the command line interface
+[project.scripts]
+spurt-emcf = "spurt.workflows.emcf:__main__"
 
 [tool.black]
 preview = true

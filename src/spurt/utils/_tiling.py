@@ -1,237 +1,251 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+import json
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-
-def intersects(box1: ArrayLike, box2: ArrayLike) -> bool:
-    """Check if two boxes intersect."""
-    return not (
-        box1[2] < box2[0] or box1[0] > box2[2] or box1[1] > box2[3] or box1[3] < box2[1]
-    )
-
-
-@runtime_checkable
-class TilerInterface(Protocol):
-    """Rectangular tiler interface."""
-
-    @property
-    def ntiles(self) -> int:
-        """Number of tiles."""
-
-    @property
-    def bounds(self) -> tuple[int, int]:
-        """Shape of rectangle being tiled."""
-
-    @property
-    def tiles(self) -> ArrayLike:
-        """2D array of shape (ntiles, 4) using shapely bbox convention."""
-
-    @property
-    def neighbors(self) -> ArrayLike | None:
-        """2D array of shape (nedges, 2).
-
-        This represents sorted pair of indices of neighboring tiles similar to
-        edges in a graph.
-        """
+__all__ = [
+    "BBox",
+    "TileSet",
+    "create_tiles_regular",
+    "create_tiles_density",
+]
 
 
-class RegularTiler(TilerInterface):
-    """Regularly sized tiles."""
+@dataclass
+class BBox:
+    """Utility class for managing tile bounds.
 
-    def __init__(self, shape: tuple[int, int], max_tiles: int, dilation: float = 0.05):
-        """Regularly sized tileset.
+    We follow shapely convention to store the bounds. The bounds should
+    also be interpreted similar to python's indexing - i.e, left edge
+    inclusive. See https://shapely.readthedocs.io/en/stable/manual.html#object.bounds
+    for details on shapely convention.
+    """
 
-        Parameters
-        ----------
-        shape: tuple[int, int]
-            Shape of rectangle to tile up.
-        max_tiles: int
-            Maximum number of tiles. Use of perfect squares recommended.
-        dilation: float
-            Fraction indicating the factor by which the tiles will be dilated
-            for overlaps. 0.05 dilation will result in 10 percent overlap.
-        """
-        if (shape[0] <= 0) and (shape[1] <= 0):
-            errmsg = f"Invalid shape provided to tiler: {shape}"
+    xmin: int
+    ymin: int
+    xmax: int
+    ymax: int
+
+    @classmethod
+    def from_shapely_bounds(cls, bounds: Sequence[int]):
+        """Create using any sequence in shapely convention."""
+        if len(bounds) != 4:
+            errmsg = f"bounds array must have size == 4, got {len(bounds)}"
             raise ValueError(errmsg)
+        return cls(*bounds)
 
-        if max_tiles <= 0:
-            errmsg = f"Maximum tiles should atleast be 1. Got {max_tiles}"
-            raise ValueError(errmsg)
-
-        self._shape: tuple[int, int] = shape
-        self._max_tiles: int = max_tiles
-        self._dilation: float = dilation
-        self._tiles: np.ndarray | None = None
-        self._neighbors: np.ndarray | None = None
-        self._generate_tiles()
-
-    @property
-    def ntiles(self) -> int:
-        return self.tiles.shape[0]
-
-    @property
-    def bounds(self) -> tuple[int, int]:
-        return self._shape
-
-    @property
-    def tiles(self) -> ArrayLike:
-        return self._tiles
-
-    @property
-    def neighbors(self) -> ArrayLike | None:
-        return self._neighbors
-
-    def _generate_tiles(self) -> None:
-        """Generate the tiles and populate arrays."""
-        # If only 1 tile was requested
-        if self._max_tiles == 1:
-            self._tiles = np.array([[0, 0, self._shape[0], self._shape[1]]])
-            return
-
-        aspect = self._shape[1] / self._shape[0]
-        tiles_per_dim: int = int(
-            self._shape[0]
-            / np.sqrt(self._shape[0] * self._shape[1] / (self._max_tiles * aspect))
+    def intersects(self, box: BBox) -> bool:
+        """Check if two boxes intersect."""
+        return not (
+            (self.xmax < box.xmin)
+            or (self.xmin > box.xmax)
+            or (self.ymin > box.ymax)
+            or (self.ymax < box.ymin)
         )
 
-        # If only 1 tile was requested
-        if tiles_per_dim == 1:
-            self._tiles = np.array([[0, 0, self._shape[0], self._shape[1]]])
-            return
+    def tolist(self) -> list[int]:
+        """List of integers in shapely convention."""
+        return [self.xmin, self.ymin, self.xmax, self.ymax]
 
-        # Generate tile extents
-        rows = np.ogrid[0 : self._shape[0] : 1j * (tiles_per_dim + 1)]  # type: ignore[misc]
-        cols = np.ogrid[0 : self._shape[1] : 1j * (tiles_per_dim + 1)]  # type: ignore[misc]
-        tiles = []
+    @property
+    def space(self) -> tuple[slice, slice]:
+        """Slice notation for use with NumPy arrays."""
+        return (slice(self.xmin, self.xmax), slice(self.ymin, self.ymax))
 
-        # Counter for rows
-        for ii in range(tiles_per_dim):
-            rdiff = rows[ii + 1] - rows[ii]
-            r0 = int(max(0, rows[ii] - self._dilation * rdiff))
-            r1 = int(min(self._shape[0], rows[ii + 1] + self._dilation * rdiff))
-            # Counter for columns
-            for jj in range(tiles_per_dim):
-                cdiff = cols[jj + 1] - cols[jj]
-                c0 = int(max(0, cols[jj] - self._dilation * cdiff))
-                c1 = int(min(self._shape[1], cols[jj + 1] + self._dilation * cdiff))
-                tiles.append([r0, c0, r1, c1])
-
-        # Track neighbors
-        nbrs = []
-        ntiles = len(tiles)
-        for ii in range(ntiles - 1):
-            for jj in range(ii + 1, ntiles):
-                if intersects(tiles[ii], tiles[jj]):
-                    nbrs.append([ii, jj])
-
-        # Assign tiles
-        self._tiles = np.array(tiles, dtype=int)
-        self._neighbors = np.array(nbrs, dtype=int)
+    @property
+    def count(self) -> int:
+        """Number of pixels in tile."""
+        return (self.xmax - self.xmin) * (self.ymax - self.ymin)
 
 
-class DensityTiler(TilerInterface):
-    """Tile up points by density.
-
-    This is based on the nice implementation found here:
-    https://mathoverflow.net/questions/412127/partitioning-unit-square-with-equal-frequency-rectangles
-    """
+class TileSet:
+    """Utility class for managing collection of tiles."""
 
     def __init__(
         self,
-        points: np.ndarray,
         shape: tuple[int, int],
-        max_tiles: int,
-        dilation: float = 0.05,
+        tiles: list[BBox],
     ):
-        """Regularly sized tileset.
-
-        Parameters
-        ----------
-        points: np.ndarray
-            2D array with point coordinates within the shape.
-        shape: tuple[int, int]
-            Shape of rectangle to tile up.
-        max_tiles: int
-            Maximum number of tiles. Use of perfect squares recommended.
-        dilation: float
-            Fraction indicating the factor by which the tiles will be dilated
-            for overlaps. 0.05 dilation will result in 10 percent overlap.
-        """
-        if points.ndim != 2:
-            errmsg = f"Point coordinates must be a 2D array. Got {points.shape}"
-            raise ValueError(errmsg)
-
-        if (shape[0] <= 0) and (shape[1] <= 0):
-            errmsg = f"Invalid shape provided to tiler: {shape}"
-            raise ValueError(errmsg)
-
-        if max_tiles <= 0:
-            errmsg = f"Maximum tiles should atleast be 1. Got {max_tiles}"
-            raise ValueError(errmsg)
-
         self._shape: tuple[int, int] = shape
-        self._max_tiles: int = max_tiles
-        self._dilation: float = dilation
-        self._tiles: np.ndarray | None = None
-        self._neighbors: np.ndarray | None = None
-        self._generate_tiles(points)
+        self._tiles: list[BBox] = tiles
 
     @property
-    def ntiles(self) -> int:
-        return self.tiles.shape[0]
-
-    @property
-    def bounds(self) -> tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         return self._shape
 
     @property
-    def tiles(self) -> ArrayLike:
+    def tiles(self) -> list[BBox]:
         return self._tiles
 
     @property
-    def neighbors(self) -> ArrayLike | None:
-        return self._neighbors
+    def ntiles(self) -> int:
+        return len(self._tiles)
 
-    def _generate_tiles(self, points: ArrayLike) -> None:
-        """Generate the tiles and populate arrays."""
-        # If only 1 tile was requested
-        if self._max_tiles == 1:
-            self._tiles = np.array([[0, 0, self._shape[0], self._shape[1]]])
-            return
+    @classmethod
+    def from_json(cls, fname: Path) -> TileSet:
+        """Load tiles from a JSON file."""
+        with fname.open(mode="r") as fid:
+            jdict = json.load(fid)
 
-        bounds = ((0, self._shape[0]), (0, self._shape[1]))
-        splits = split_rectangle(points, bounds, self._max_tiles)
+        shape = jdict["shape"]
+        tiles: list[BBox] = []
+        for tt in jdict["tiles"]:
+            tiles.append(BBox.from_shapely_bounds(tt["bounds"]))
 
-        # Reorder indices
-        tiles = [[s[0][0], s[1][0], s[0][1], s[1][1]] for s in splits]
-        ntiles = len(tiles)
+        return cls(shape, tiles)
 
-        # Dilate rectangles
-        for ii in range(ntiles):
-            t = tiles[ii]
-            rdiff = t[2] - t[0]
-            r0 = int(max(0, t[0] - self._dilation * rdiff))
-            r1 = int(min(self._shape[0], t[2] + self._dilation * rdiff))
-            cdiff = t[3] - t[1]
-            c0 = int(max(0, t[1] - self._dilation * cdiff))
-            c1 = int(min(self._shape[1], t[3] + self._dilation * cdiff))
+    def to_json(self, fname: Path) -> None:
+        """Write tiles to a JSON file."""
+        tiles = []
+        for tt in self.tiles:
+            tiles.append({"bounds": tt.tolist()})
 
-            tiles[ii] = [r0, c0, r1, c1]
+        jdict: dict = {
+            "shape": self.shape,
+            "tiles": tiles,
+        }
+        with fname.open(mode="w") as fid:
+            fid.write(json.dumps(jdict, indent=4))
 
-        # Track neighbors
-        nbrs = []
-        ntiles = len(tiles)
+    @classmethod
+    def single_tile(cls, shape: tuple[int, int]) -> TileSet:
+        """Return tileset with single tile corresponding to shape."""
+        return cls(shape, [BBox.from_shapely_bounds((0, 0, shape[0], shape[1]))])
+
+    def get_overlaps(self) -> list[tuple[int, int]]:
+        """Return list of pairs of overlapping tiles."""
+        olaps: list[tuple[int, int]] = []
+
+        ntiles = self.ntiles
         for ii in range(ntiles - 1):
+            box1 = self._tiles[ii]
             for jj in range(ii + 1, ntiles):
-                if intersects(tiles[ii], tiles[jj]):
-                    nbrs.append([ii, jj])
+                if box1.intersects(self._tiles[jj]):
+                    olaps.append((ii, jj))
 
-        self._tiles = np.array(tiles)
-        self._neighbors = np.array(nbrs)
+        return olaps
+
+    def dilate(self, factor: float) -> TileSet:
+        """Dilate current tile set."""
+        tiles: list[BBox] = []
+        shape = self.shape
+
+        # Iterate over and dilate rectangles
+        for tt in self.tiles:
+            rdiff = tt.xmax - tt.xmin
+            r0 = int(max(0, tt.xmin - factor * rdiff))
+            r1 = int(min(shape[0], tt.xmax + factor * rdiff))
+            cdiff = tt.ymax - tt.ymin
+            c0 = int(max(0, tt.ymin - factor * cdiff))
+            c1 = int(min(shape[1], tt.ymax + factor * cdiff))
+
+            tiles.append(BBox(r0, c0, r1, c1))
+
+        return TileSet(shape, tiles)
+
+
+def create_tiles_regular(shape: tuple[int, int], max_tiles: int) -> TileSet:
+    """Tile set with approximately regularly sized non-overlapping tiles.
+
+    Parameters
+    ----------
+    shape: tuple[int, int]
+        Shape of rectangle to tile up.
+    max_tiles: int
+        Maximum number of tiles.
+        Actual number of tiles is perfect square '<= max_tiles'.
+    """
+    if (shape[0] <= 0) and (shape[1] <= 0):
+        errmsg = f"Invalid shape provided to tiler: {shape}"
+        raise ValueError(errmsg)
+
+    if max_tiles <= 0:
+        errmsg = f"Maximum tiles should at least be 1. Got {max_tiles}"
+        raise ValueError(errmsg)
+
+    # Compute tiles per dimension
+    tiles_per_dim: int = int(np.sqrt(max_tiles))
+
+    # If only 1 tile was requested
+    if tiles_per_dim == 1:
+        return TileSet.single_tile(shape)
+
+    # Generate tile extents
+    rows = np.ogrid[0 : shape[0] : 1j * (tiles_per_dim + 1)]  # type: ignore[misc]
+    cols = np.ogrid[0 : shape[1] : 1j * (tiles_per_dim + 1)]  # type: ignore[misc]
+    tiles: list[BBox] = []
+
+    # Counter for rows
+    for ii in range(tiles_per_dim):
+        r0 = int(rows[ii])
+        r1 = int(rows[ii + 1])
+        # Counter for columns
+        for jj in range(tiles_per_dim):
+            c0 = int(cols[jj])
+            c1 = int(cols[jj + 1])
+            tiles.append(BBox.from_shapely_bounds((r0, c0, r1, c1)))
+
+    return TileSet(shape, tiles)
+
+
+def create_tiles_density(
+    points: np.ndarray, shape: tuple[int, int], max_tiles: int
+) -> TileSet:
+    """Tile set with non-overlapping tiles based on density of points.
+
+    This is based on the nice implementation found here:
+    https://mathoverflow.net/questions/412127/partitioning-unit-square-with-equal-frequency-rectangles
+
+    Parameters
+    ----------
+    points: np.ndarray
+        2D array with point coordinates within the shape.
+    shape: tuple[int, int]
+        Shape of rectangle to tile up.
+    max_tiles: int
+        Maximum number of tiles.
+        Actual number of tiles is perfect square '<= max_tiles'.
+    """
+    if (points.ndim != 2) or (points.shape[1] != 2):
+        errmsg = f"Point coordinates must be a Nx2 array. Got {points.shape}"
+        raise ValueError(errmsg)
+
+    if (shape[0] <= 0) and (shape[1] <= 0):
+        errmsg = f"Invalid shape provided to tiler: {shape}"
+        raise ValueError(errmsg)
+
+    if max_tiles <= 0:
+        errmsg = f"Maximum tiles should at least be 1. Got {max_tiles}"
+        raise ValueError(errmsg)
+
+    # Compute tiles per dim
+    tiles_per_dim: int = int(np.sqrt(max_tiles))
+    max_tiles = tiles_per_dim * tiles_per_dim
+
+    # If only 1 tile was requested
+    if max_tiles == 1:
+        return TileSet.single_tile(shape)
+
+    bounds = ((0, shape[0]), (0, shape[1]))
+    splits = split_rectangle(points, bounds, max_tiles)
+    tiles = []
+
+    for s in splits:
+        # Reorder indices
+        t = [s[0][0], s[1][0], s[0][1], s[1][1]]
+        r0 = int(max(0, t[0]))
+        r1 = int(min(shape[0], t[2]))
+        c0 = int(max(0, t[1]))
+        c1 = int(min(shape[1], t[3]))
+
+        tiles.append(BBox.from_shapely_bounds([r0, c0, r1, c1]))
+
+    return TileSet(shape, tiles)
 
 
 def _score_rectangle(aa: ArrayLike, bb: ArrayLike, m: int):
@@ -249,7 +263,7 @@ def _get_splits(z: ArrayLike, m: int, boundz: tuple[int, int]):
     beg_val = z[beg_idx]
     end_val = z[end_idx]
 
-    # splits are defined to be exaclty half-way in between : might not be optimal
+    # splits are defined to be exactly half-way in between : might not be optimal
     split_cuts = (end_val[:-1] + beg_val[1:]) / 2
     split_cuts = np.concatenate(([boundz[0]], split_cuts, [boundz[1]]))
     split_lens = np.diff(split_cuts)

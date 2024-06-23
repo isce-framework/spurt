@@ -49,7 +49,7 @@ class Hop3Graph(PlanarGraphInterface):
 
     @property
     def boundary(self) -> np.ndarray:
-        return np.ndarray([[0, 1], [1, 3], [3, 0]])
+        return np.array([[0, 1], [1, 3], [3, 0]])
 
     def _create_cycles_and_links(self) -> None:
         arcs: set[tuple[int, int]] = set()

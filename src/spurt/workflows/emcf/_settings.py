@@ -64,6 +64,8 @@ class GeneralSettings:
     ----------
     use_tiles: bool
         Tile up data spatially.
+    intermediate_folder: str
+        Path to folder where intermediate outputs are created.
     output_folder: str
         Path to output folder.
     """
@@ -114,11 +116,39 @@ class TilerSettings:
         Target points per tile when generating tiles.
     max_tiles: int
         Maximum number of tiles allowed.
+    target_points_for_generation: int
+        Number of points used for determining tiles based on density.
+        If input has a lot of points, tiling can take a really long time.
+        We use this as a guide to downsample inputs to generate tile
+        boundaries. The tile boundaries are then used with full set of inputs.
+    dilation_factor: float
+        Dilation factor of non-overlapping tiles. 0.05 would lead to
+        10 percent dilation of the tile.
     """
 
+    target_points_per_tile: int = 800000
     max_tiles: int = 16
     target_points_for_generation: int = 120000
-    target_points_per_tile: int = 800000
+    dilation_factor: float = 0.05
+
+    def __post_init__(self):
+        if self.max_tiles < 1:
+            errmsg = f"max_tiles must be at least 1, got {self.max_tiles}"
+            raise ValueError(errmsg)
+        if self.dilation_factor < 0.0:
+            errmsg = f"dilation_factor must be >= 0., got {self.dilation_factor}"
+            raise ValueError(errmsg)
+        if self.target_points_for_generation <= 0:
+            errmsg = (
+                "target_points_for_generation must be > 0,"
+                f" got {self.target_points_for_generation}"
+            )
+            raise ValueError(errmsg)
+        if self.target_points_per_tile <= 0.0:
+            errmsg = (
+                f"target_points_per_tile must be > 0, got {self.target_points_per_tile}"
+            )
+            raise ValueError(errmsg)
 
 
 @dataclass
@@ -133,7 +163,8 @@ class MergerSettings:
     method: str
         Currently, only "dirichlet" is supported.
     bulk_method: str
-        Method used to estimate bulk offset between tiles.
+        Method used to estimate bulk offset between tiles. Supported methods
+        are 'integer' and 'L2'.
     """
 
     min_overlap_points: int = 25

@@ -1,5 +1,3 @@
-import json
-
 import h5py
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -12,44 +10,47 @@ from ._settings import GeneralSettings, MergerSettings
 logger = spurt.utils.logger
 
 
-def compute_overlap_stats(
+def compute_phasediff_deciles(
     gen_settings: GeneralSettings,
     mrg_settings: MergerSettings,
 ) -> None:
-    """Compute overlap stats and save to h5."""
+    """Compute overlap phase difference stats and save to h5.
+
+    We compute histograms of phase difference between overlapping tiles.
+    While we only use a constant bulk offset for reconciling differences, these
+    histograms can be used for debugging and assessing quality of consistency
+    betwen unwrapped results of individual tiles.
+    """
     # Check if already processed
     if gen_settings.overlap_filename.is_file():
         logger.info("Overlap file already exists. Skipping ...")
         return
 
     # Load tile info
-    with gen_settings.tiles_jsonname.open(mode="r") as fid:
-        tiledata = json.load(fid)
+    tiledata = spurt.utils.TileSet.from_json(gen_settings.tiles_jsonname)
 
     # If single tile json - just return
-    if len(tiledata["tiles"]) == 1:
+    if tiledata.ntiles == 1:
         logger.info("Single tile used. Skipping overlaps ...")
         return
 
     t1 = -1
     t2 = -1
-    ntiles = len(tiledata["tiles"])
+    ntiles = tiledata.ntiles
     conn_mat = np.zeros((ntiles, ntiles))
     overlaps = []
     overlap_file: str = str(gen_settings.overlap_filename)
-    for pair in tiledata["neighbors"]:
+    for pair in tiledata.get_overlaps():
         logger.info(f"Processing neighboring pair: {pair}")
         if pair[0] != t1:
             t1 = pair[0]
-            bnds1 = tiledata["tiles"][t1]["bounds"]
-            pt1, uw1 = _load_uw_tile(str(gen_settings.tile_filename(t1)), bnds1)
-            pt1[:, 0] += bnds1[0]
-            pt1[:, 1] += bnds1[1]
+            tile1 = tiledata.tiles[t1]
+            pt1, uw1 = _load_uw_tile(str(gen_settings.tile_filename(t1)), tile1)
 
         if pair[1] != t2:
             t2 = pair[1]
-            bnds2 = tiledata["tiles"][t2]["bounds"]
-            pt2, uw2 = _load_uw_tile(str(gen_settings.tile_filename(t2)), bnds2)
+            tile2 = tiledata.tiles[t2]
+            pt2, uw2 = _load_uw_tile(str(gen_settings.tile_filename(t2)), tile2)
 
         # Find common points
         c1, c2 = spurt.utils.merge.find_common_points(pt1, pt2)
@@ -65,12 +66,12 @@ def compute_overlap_stats(
         # difference stats
         cuw1 = uw1[:, c1]
         cuw2 = uw2[:, c2]
-        stats = spurt.utils.merge.pairwise_unwrapped_diff(cuw1, cuw2)
+        stats = spurt.utils.merge.pairwise_unwrapped_diff_deciles(cuw1, cuw2)
         grpname = gen_settings.overlap_groupname(t1, t2)
         with h5py.File(overlap_file, "a") as fid:
             grp = fid.create_group(grpname)
-            grp["c1"] = c1.astype(np.int16)
-            grp["c2"] = c2.astype(np.int16)
+            grp["c1"] = c1.astype(int)
+            grp["c2"] = c2.astype(int)
             grp["stats"] = stats.astype(np.int16)
 
     # Identify connected components
@@ -87,7 +88,7 @@ def compute_overlap_stats(
         fid["overlaps"] = np.array(overlaps, dtype=np.int16)
 
 
-def _load_uw_tile(fname: str, bnds: list[int]) -> tuple[np.ndarray, np.ndarray]:
+def _load_uw_tile(fname: str, tile: spurt.utils.BBox) -> tuple[np.ndarray, np.ndarray]:
     """Load data from tile h5 file."""
     with h5py.File(fname, "r") as fid:
         pts = fid["points"][...]
@@ -95,10 +96,10 @@ def _load_uw_tile(fname: str, bnds: list[int]) -> tuple[np.ndarray, np.ndarray]:
         off = fid["phase_offset"][...]
 
     # Apply phase offset to unwrapped phase
-    uw += off
+    uw += off.flatten()[:, None]
 
     # Apply bounds offset to locations
-    pts[:, 0] + bnds[0]
-    pts[:, 1] + bnds[1]
+    pts[:, 0] = pts[:, 0] + tile.xmin
+    pts[:, 1] = pts[:, 1] + tile.ymin
 
     return pts, uw

@@ -38,7 +38,7 @@ def sign_nonzero(x: float) -> int:
     return -1
 
 
-def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
+def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray, mode: str):
     """Flood fill unwrapping.
 
     Given input data and links for those links start at an arbitrary point
@@ -58,6 +58,8 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         a fully connected graph.
     flows : np.ndarray
         Integer cycles to be added to each link.
+    mode: str
+        Can be one of 'points' or 'gradients'
 
     Returns
     -------
@@ -68,13 +70,28 @@ def flood_fill(indata: np.ndarray, links: np.ndarray, flows: np.ndarray):
         errmsg = f"Dimension mismatch - {links.shape} vs {flows.shape}"
         raise ValueError(errmsg)
 
-    if len(indata) == len(links):
+    if mode not in ["points", "gradients"]:
+        errmsg = f"mode can be 'points' or 'gradients'. got {mode}"
+        raise ValueError(errmsg)
+
+    npts = np.max(links) + 1
+    if mode == "gradients":
+        if len(indata) != len(links):
+            errmsg = f"Shape mismatch in gradients mode. {len(indata)} vs {len(links)}"
+            raise ValueError(errmsg)
+
         input_is_pts = False
-        npts = np.max(links) + 1
+
+    elif mode == "points":
+        if len(indata) != npts:
+            errmsg = f"Shape mismatch in point mode. {len(indata)} vs {npts}"
+            raise ValueError(errmsg)
+
+        input_is_pts = True
 
     else:
-        input_is_pts = True
-        npts = len(indata)
+        errmsg = f"Invalid mode: {mode}"
+        raise RuntimeError(errmsg)
 
     # Indices of points
     pts = np.arange(npts)

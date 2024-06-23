@@ -80,6 +80,9 @@ class LinkModelInterface(Protocol):
         weights: np.ndarray
             1D / 2D array of same length as wrapdata with weights.
             If 1D array, same weights are reused for all inputs.
+         worker_count: int
+            Number of workers to use if inputs can be handled in parallel. The
+            implementation determines default in case a number <=0 is provided.
 
         Returns
         -------
@@ -88,7 +91,4 @@ class LinkModelInterface(Protocol):
         quality: np.ndarray
             1D array of length ninputs representing temporal coherence or a similar
             quality metric indicating model fit.
-        worker_count: int
-            Number of workers to use if inputs can be handled in parallel. The
-            implementation determines default in case a number <=0 is provided.
         """

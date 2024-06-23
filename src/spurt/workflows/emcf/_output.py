@@ -1,13 +1,11 @@
 import numbers
+from pathlib import Path
 from typing import Any
 
 import h5py
 import numpy as np
-from scipy.sparse import csr_matrix
 
 import spurt
-
-from ._settings import GeneralSettings
 
 logger = spurt.utils.logger
 
@@ -16,6 +14,16 @@ class Tile:
     """Utility class for managing one unwrapped tile."""
 
     def __init__(self, fname: str, bandidx: int):
+        """Handle one tile of unwrapped output.
+
+        Parameters
+        ----------
+        fname: str
+            Filename of intermediate HDF5 file with output for one unwrapped
+            tile.
+        bandidx: int
+            0-based band index used to slice the output in time dimension.
+        """
         self._fname: str = fname
         self._idx: int = bandidx
         self._corrections: list[Any] = []
@@ -24,16 +32,25 @@ class Tile:
 
     @property
     def idx(self) -> int:
+        """Band index currently being tracked."""
         return self._idx
 
     @property
+    def correction_level(self) -> int:
+        """Correction level being tracked."""
+        return self._correction_level
+
+    @property
     def coords(self) -> np.ndarray:
+        """Point coordinates in global grid."""
         with h5py.File(self._fname, mode="r") as fid:
             pts = fid["/points"][...]
             tile = fid["/tile"][...]
-            return pts + tile[None, :2]
+
+        return pts + tile[None, :2]
 
     def get_uw_phase(self, level: int) -> np.ndarray:
+        """Unwrapped phase with corrections applied to specified level."""
         with h5py.File(self._fname, mode="r") as fid:
             uw_data: np.ndarray = fid["/uw_data"][self._idx, :]
             offset: float = fid["/phase_offset"][self._idx]
@@ -41,15 +58,17 @@ class Tile:
         return sum([uw_data + offset] + self._corrections[:level])
 
     def get_corrections_sum(self, level: int) -> np.ndarray:
+        """Corrections to unwrapped phase up to a specified level."""
         return sum(self._corrections[:level])
 
     @property
     def corrections(self) -> np.ndarray:
+        """Correction up to the current level."""
         return self.get_corrections_sum(self._correction_level)
 
     @property
     def uw_phase(self) -> np.ndarray:
-        """Return corrections summed up to a level."""
+        """Return corrections summed up to the current level."""
         return self.get_uw_phase(self._correction_level)
 
     @property
@@ -59,25 +78,16 @@ class Tile:
 
     @property
     def graph_laplacian(self) -> Any:
+        """Graph laplacian for the tile."""
         if self._graph_laplacian is not None:
             return self._graph_laplacian
 
         g_space = spurt.graph.DelaunayGraph(self.coords)
-        links = g_space.links
-        nlinks = links.shape[0]
-        data = np.ones(2 * nlinks, dtype=int)
-        data[0::2] = -1
-        amat = csr_matrix(
-            (
-                data,
-                (np.arange(2 * nlinks, dtype=int) // 2, links.flatten()),
-            )
-        )
-
-        self._graph_laplacian = amat.T.dot(amat)
+        self._graph_laplacian = spurt.graph.graph_laplacian(g_space)
         return self._graph_laplacian
 
     def add_correction(self, a) -> None:
+        """Add a constant or pixel-by-pixel correction."""
         if isinstance(a, numbers.Number) or (
             isinstance(a, np.ndarray) and a.size == self.coords.shape[0]
         ):
@@ -87,13 +97,25 @@ class Tile:
             raise ValueError(errmsg)
 
     def reset_corrections(self) -> None:
+        """Reset corrections to reuse object with another band index."""
         self._correction_level = 0
         self._corrections = []
 
     def increment_correction(self) -> None:
+        """Increment current correction level."""
         self._correction_level += 1
 
+    def compress_corrections(self) -> None:
+        """Compress corrections to single level to reduce memory usage."""
+        if len(self._corrections) > 1:
+            self._corrections[0] += self._corrections.pop()
+
+        if len(self._corrections) > 1:
+            errmsg = "More than one correction in compress mode"
+            raise RuntimeError(errmsg)
+
     def reset_band_index(self, newidx: int) -> None:
+        """Change current band index."""
         self._idx = newidx
         # This needs to be reset since we are looking at a new band now
         self.reset_corrections()
@@ -101,19 +123,15 @@ class Tile:
 
 def write_single_tile(
     tile: Tile,
-    g_time: spurt.graph.GraphInterface,
+    fnames: list[Path],
     shape: tuple[int, int],
-    gen_settings: GeneralSettings,
 ) -> None:
-    """Write a single tile as geotiffs to output file."""
+    """Write a single tile as GeoTIFFs to output file."""
     # Get indices of the interferograms
-    ifgs = g_time.links
-
     coords = tile.coords
 
     # For each band
-    for ii, ifg in enumerate(ifgs):
-        fname = gen_settings.unw_filename(ifg[0], ifg[1])
+    for ii, fname in enumerate(fnames):
         if fname.is_file():
             logger.info(
                 f"{fname!s} for band {ii + 1} already exists. Skipping writing ..."
@@ -143,15 +161,12 @@ def write_single_tile(
 
 
 def write_merged_band(
-    tiles: list[Tile],
-    g_time: spurt.graph.GraphInterface,
+    tiles: dict[int, Tile],
+    fname: Path,
     idx: int,
     shape: tuple[int, int],
-    gen_settings: GeneralSettings,
 ) -> None:
     """Write a single band after merging all the tiles."""
-    ifg = g_time.links[idx]
-    fname = gen_settings.unw_filename(ifg[0], ifg[1])
     if fname.is_file():
         logger.info(
             f"{fname!s} for band {idx + 1} already exists. Skipping writing ..."
@@ -159,21 +174,49 @@ def write_merged_band(
         return
 
     # check that we are looking at the same band in all tiles
-    for tile in tiles:
+    for tile in tiles.values():
         assert tile.idx == idx, "Band index mismatch"
+        assert tile.correction_level == 1, "Only one offset supported"
 
     # Create full sized array
+    model = np.zeros(shape, dtype=np.float32)
+    cnt = np.zeros(shape, dtype=np.int16)
+    minval = np.full(shape, np.inf, dtype=np.float32)
+    maxval = np.full(shape, -np.inf, dtype=np.float32)
+
+    # Now iterate over tiles and compute average
+    for tile in tiles.values():
+        coords = tile.coords.astype(np.int32)
+        c0 = coords[:, 0]
+        c1 = coords[:, 1]
+
+        data = tile.uw_phase
+        minval[c0, c1] = np.minimum(data, minval[c0, c1])
+        maxval[c0, c1] = np.maximum(data, maxval[c0, c1])
+
+        model[c0, c1] += tile.uw_phase
+        cnt[c0, c1] += 1
+
+    mask = cnt != 0
+    model[~mask] = np.nan
+    model[mask] /= cnt[mask]
+    diff = maxval - minval
+    diff[cnt < 2] = np.nan
+    diff[np.isinf(diff)] = np.nan
+
+    # Now iterate over tiles and wrap around model
     arr = np.full(shape, np.nan, dtype=np.float32)
+    for tile in tiles.values():
+        coords = tile.coords.astype(np.int32)
+        c0 = coords[:, 0]
+        c1 = coords[:, 1]
+        mmodel = model[c0, c1]
+        d = tile.raw_uw_phase - mmodel
 
-    # Now iterate over tiles and fill up the array
-    for tile in tiles:
-        coords = tile.coords
-
-        int_corr = 2 * np.pi * np.rint(tile.corrections / (2 * np.pi))
-        arr[coords[:, 0], coords[:, 1]] = tile.raw_uw_phase + int_corr
+        arr[c0, c1] = mmodel + d - 2 * np.pi * np.round(d / (2 * np.pi))
 
     # Now write array to file
-    idx = np.s_[:, :]
+    sidx = np.s_[:, :]
     logger.info(f"Writing band {idx + 1} to {fname!s}")
     with spurt.io.Raster.create(
         str(fname),
@@ -187,4 +230,34 @@ def write_merged_band(
         blockysize=512,
         compress="DEFLATE",
     ) as raster:
-        raster[idx] = arr
+        raster[sidx] = arr
+
+    # Now write array to file
+    with spurt.io.Raster.create(
+        str(fname).replace(".tif", "_diff.tif"),
+        width=shape[1],
+        height=shape[0],
+        dtype=np.float32,
+        nodata=np.nan,
+        driver="GTiff",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="DEFLATE",
+    ) as raster:
+        raster[sidx] = diff
+
+    # Now write array to file
+    with spurt.io.Raster.create(
+        str(fname).replace(".tif", "_model.tif"),
+        width=shape[1],
+        height=shape[0],
+        dtype=np.float32,
+        nodata=np.nan,
+        driver="GTiff",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="DEFLATE",
+    ) as raster:
+        raster[sidx] = model

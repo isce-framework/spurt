@@ -147,7 +147,7 @@ class ORMCFSolver(MCFSolverInterface):
         self,
         graddata: ArrayLike,
     ) -> ArrayLike:
-        """Compute phase residues for one set of real input gradients."""
+
         if graddata.size != self.nedges:
             errmsg = (
                 f"Size mismatch for residue computation."
@@ -155,8 +155,8 @@ class ORMCFSolver(MCFSolverInterface):
             )
             raise ValueError(errmsg)
 
-        cyc0 = np.abs(self.dual_edges[:, 0])
-        cyc1 = np.abs(self.dual_edges[:, 1])
+        cyc0 = self.dual_edges[:, 0]
+        cyc1 = self.dual_edges[:, 1]
         cyc0_dir = self.dual_edge_dir[:, 0]
         cyc1_dir = self.dual_edge_dir[:, 1]
         grad_sum = np.zeros(self.ncycles + 1, dtype=np.float32)
@@ -164,7 +164,7 @@ class ORMCFSolver(MCFSolverInterface):
         np.add.at(grad_sum, cyc0, cyc0_dir * graddata)
         np.add.at(grad_sum, cyc1, cyc1_dir * graddata)
 
-        residues = np.rint(grad_sum / (2 * np.pi))
+        residues = np.rint(grad_sum / (2 * np.pi)).astype(int)
         # Set supply of groud_node
         residues[0] = -np.sum(residues[1:])
 
@@ -187,7 +187,7 @@ class ORMCFSolver(MCFSolverInterface):
         flows = self.residues_to_flows(residues, cost, revcost=revcost)
 
         # Flood fill with the flows
-        unw = flood_fill(wrapdata, self.edges, flows)
+        unw = flood_fill(wrapdata, self.edges, flows, mode="points")
 
         return unw, flows
 
