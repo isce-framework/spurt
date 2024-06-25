@@ -24,20 +24,18 @@ classifiers = [
   "Topic :: Scientific/Engineering",
 ]
 requires-python = ">=3.9"
-dependencies = [
-  "numpy>=1.23",
-  "scipy>=1.9",
-  "ortools==9.8.3296",
-  "rasterio>=1.2",
-  "h5py>=3.6",
-]
-dynamic = ["version"]
 
-[project.optional-dependencies]
-test = [
-  "pytest>=6",
-  "pytest-cov>=3"
-]
+# dependencies will be read from text files
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+# extra requirements: `pip install spurt[docs]` or `pip install .[test]`
+[tool.setuptools.dynamic.optional-dependencies.test]
+file = ["tests/requirements.txt"]
+[tool.setuptools.dynamic.optional-dependencies.docs]
+file = ["docs/requirements.txt"]
 
 [project.urls]
 Discussions = "https://github.com/isce-framework/spurt/discussions"
