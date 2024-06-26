@@ -25,11 +25,11 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
+  "h5py>=3.6",
   "numpy>=1.23",
-  "scipy>=1.9",
   "ortools==9.8.3296",
   "rasterio>=1.2",
-  "h5py>=3.6",
+  "scipy>=1.9",
 ]
 dynamic = ["version"]
 
@@ -37,6 +37,17 @@ dynamic = ["version"]
 test = [
   "pytest>=6",
   "pytest-cov>=3"
+]
+docs = [
+  "mdx_bib @ git+https://github.com/bobmyhill/mdx_bib.git@6b13bbbc407617a5e93ed0f8a0e5e4c52f73f677",
+  "mkdocs",
+  "mkdocs-gen-files",
+  "mkdocs-jupyter",
+  "mkdocs-literate-nav",
+  "mkdocs-material",
+  "mkdocs-section-index",
+  "mkdocstrings[python]",
+  "pymdown-extensions",
 ]
 
 [project.urls]
