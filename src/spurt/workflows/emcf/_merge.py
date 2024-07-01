@@ -47,7 +47,8 @@ def merge_tiles(
 
     # Create overlap map for the graph
     overlap_map = _get_overlap_map(gen_settings)
-    max_degree = 4
+    max_degree = _get_max_degree(tiles, tiledata.shape)
+    logger.info(f"Maximum degree for Dirichlet iterations: {max_degree}")
 
     # Read bulk offsets from hdf5 file
     with h5py.File(str(gen_settings.offsets_filename), "r") as fid:
@@ -184,3 +185,16 @@ def _get_common_overlap(
         c2 = grp["c2"][:]
 
     return c1, c2
+
+
+def _get_max_degree(tiles: dict[int, Tile], shape: tuple[int, int]) -> int:
+    """Compute max degree of a pixel.
+
+    This is same as maximum number of tiles that a pixel can be a part of.
+    """
+    count = np.zeros(shape, dtype=np.uint8)
+    for tile in tiles.values():
+        coords = tile.coords.astype(np.int32)
+        count[coords[:, 0], coords[:, 1]] += 1
+
+    return int(count.max())
