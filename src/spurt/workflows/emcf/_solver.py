@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import numpy as np
 
 from spurt.io import Irreg3DInput
@@ -248,22 +250,19 @@ class EMCFSolver:
         logger.info(f"Spatial: Number of links: {self.nlinks}")
         logger.info(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
 
-        for ii in range(self.nifgs):
-            logger.info(f"Spatial: Unwrapping {ii + 1} / {self.nifgs}")
-            # Slice per ifg
-            ifg_grad = grad_space[ii, :]
-
-            # Compute residues
-            residues = self._solver_space.compute_residues_from_gradients(ifg_grad)
-
-            # Unwrap the interferogram - sequential
-            flows = self._solver_space.residues_to_flows(residues, cost)
-
-            # Flood fill
-            uw_data[ii, :] = utils.flood_fill(
-                ifg_grad, self._solver_space.edges, flows, mode="gradients"
-            )
-
+        with ProcessPoolExecutor(max_workers=self.settings.worker_count) as executor:
+            futures = [
+                executor.submit(
+                    _unwrap_ifg_in_space,
+                    grad_space[ii, :],
+                    self._solver_space,
+                    cost,
+                    ii,
+                )
+                for ii in range(self.nifgs)
+            ]
+        for ii, fut in enumerate(as_completed(futures)):
+            uw_data[ii, :] = fut.result()
         return uw_data
 
     def _ifg_spatial_gradients_from_slc(
@@ -305,3 +304,19 @@ class EMCFSolver:
 
         # Update gradient in place
         grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1)
+
+
+def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
+    # ifg_grad comes from `grad_space`:
+    # ifg_grad = grad_space[ii, :]
+
+    # Compute residues
+    residues = solver_space.compute_residues_from_gradients(ifg_grad)
+
+    # Unwrap the interferogram - sequential
+    flows = solver_space.residues_to_flows(residues, cost)
+
+    # Flood fill
+    out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
+    logger.info(f"Completed spatial unwrapping {ii + 1}")
+    return out
