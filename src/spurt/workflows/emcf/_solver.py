@@ -213,7 +213,7 @@ class EMCFSolver:
             # Unwrap the batch
             logger.info(f"Temporal: Unwrapping batch {bb + 1}/{nbatches}")
             flows = self._solver_time.residues_to_flows_many(
-                residues, cost, worker_count=self.settings.worker_count
+                residues, cost, worker_count=self.settings.t_worker_count
             )
 
             # Update the spatial gradients with estimated flows
@@ -250,7 +250,7 @@ class EMCFSolver:
         logger.info(f"Spatial: Number of links: {self.nlinks}")
         logger.info(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
 
-        with ProcessPoolExecutor(max_workers=self.settings.worker_count) as executor:
+        with ProcessPoolExecutor(max_workers=self.settings.s_worker_count) as executor:
             futures = [
                 executor.submit(
                     _unwrap_ifg_in_space,
