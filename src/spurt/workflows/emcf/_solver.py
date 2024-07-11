@@ -307,9 +307,6 @@ class EMCFSolver:
 
 
 def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
-    # ifg_grad comes from `grad_space`:
-    # ifg_grad = grad_space[ii, :]
-
     # Compute residues
     residues = solver_space.compute_residues_from_gradients(ifg_grad)
 
