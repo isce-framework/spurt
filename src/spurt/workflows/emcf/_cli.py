@@ -80,7 +80,7 @@ def main(args=None):
 
     # Create solver settings
     slv_settings = SolverSettings(
-        worker_count=parsed_args.workers,
+        t_worker_count=parsed_args.workers,
         links_per_batch=parsed_args.batchsize,
     )
 
