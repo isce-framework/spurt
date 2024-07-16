@@ -12,9 +12,13 @@ class SolverSettings:
 
     Parameters
     ----------
-    worker_count: int
+    t_worker_count: int
         Number of workers for temporal unwrapping in parallel. Set value to <=0
         to let workflow use default workers (ncpus - 1).
+    s_worker_count: int
+        Number of workers for spatial unwrapping in parallel. Set value to <=0
+        to let workflow use (ncpus - 1).
+        Defaults to 1 (i.e. unwrap one interferogram in space at a time).
     links_per_batch: int
         Temporal unwrapping operations over spatial links are performed in batches
         and each batch is solved in parallel.
@@ -30,7 +34,8 @@ class SolverSettings:
         Scale factor used in computing edge costs for spatial unwrapping.
     """
 
-    worker_count: int = 0
+    t_worker_count: int = 0
+    s_worker_count: int = 1
     links_per_batch: int = 10000
     t_cost_type: str = "constant"
     t_cost_scale: float = 100.0

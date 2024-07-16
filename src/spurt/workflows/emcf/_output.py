@@ -1,4 +1,5 @@
 import numbers
+import os
 from pathlib import Path
 from typing import Any
 
@@ -125,11 +126,13 @@ def write_single_tile(
     tile: Tile,
     fnames: list[Path],
     shape: tuple[int, int],
+    like: str | os.PathLike[str] | None = None,
 ) -> None:
     """Write a single tile as GeoTIFFs to output file."""
     # Get indices of the interferograms
     coords = tile.coords
 
+    like_raster = None if like is None else spurt.io.Raster(like)
     # For each band
     for ii, fname in enumerate(fnames):
         if fname.is_file():
@@ -156,6 +159,7 @@ def write_single_tile(
             blockxsize=512,
             blockysize=512,
             compress="DEFLATE",
+            like=like_raster,
         ) as raster:
             raster[idx] = arr
 
@@ -165,6 +169,7 @@ def write_merged_band(
     fname: Path,
     idx: int,
     shape: tuple[int, int],
+    like: str | os.PathLike[str] | None = None,
 ) -> None:
     """Write a single band after merging all the tiles."""
     if fname.is_file():
@@ -217,6 +222,7 @@ def write_merged_band(
 
     # Now write array to file
     sidx = np.s_[:, :]
+    like_raster = None if like is None else spurt.io.Raster(like)
     logger.info(f"Writing band {idx + 1} to {fname!s}")
     with spurt.io.Raster.create(
         str(fname),
@@ -229,6 +235,7 @@ def write_merged_band(
         blockxsize=512,
         blockysize=512,
         compress="DEFLATE",
+        like=like_raster,
     ) as raster:
         raster[sidx] = arr
 
@@ -244,6 +251,7 @@ def write_merged_band(
         blockxsize=512,
         blockysize=512,
         compress="DEFLATE",
+        like=like_raster,
     ) as raster:
         raster[sidx] = diff
 
@@ -259,5 +267,6 @@ def write_merged_band(
         blockxsize=512,
         blockysize=512,
         compress="DEFLATE",
+        like=like_raster,
     ) as raster:
         raster[sidx] = model
