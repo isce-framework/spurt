@@ -35,14 +35,13 @@ def main(args=None):
         "--tempdir", default="./emcf_tmp", help="Folder for intermediate outputs."
     )
     parser.add_argument(
-        "-tw",
+        "-w",
         "--t-workers",
         type=int,
         default=0,
         help="Number of workers for temporal unwrapping. <=0 uses ncpus - 1.",
     )
     parser.add_argument(
-        "-sw",
         "--s-workers",
         type=int,
         default=1,
