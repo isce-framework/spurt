@@ -261,8 +261,9 @@ class EMCFSolver:
                 )
                 for ii in range(self.nifgs)
             ]
-        for ii, fut in enumerate(as_completed(futures)):
-            uw_data[ii, :] = fut.result()
+        for fut in as_completed(futures):
+            ii, data = fut.result()
+            uw_data[ii, :] = data
         return uw_data
 
     def _ifg_spatial_gradients_from_slc(
@@ -316,4 +317,4 @@ def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
     # Flood fill
     out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
     logger.info(f"Completed spatial unwrapping {ii + 1}")
-    return out
+    return ii, out
