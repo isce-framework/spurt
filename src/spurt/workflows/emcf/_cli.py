@@ -35,11 +35,18 @@ def main(args=None):
         "--tempdir", default="./emcf_tmp", help="Folder for intermediate outputs."
     )
     parser.add_argument(
-        "-w",
-        "--workers",
+        "-tw",
+        "--t-workers",
         type=int,
         default=0,
-        help="Number of workers. <=0 uses ncpus - 1.",
+        help="Number of workers for temporal unwrapping. <=0 uses ncpus - 1.",
+    )
+    parser.add_argument(
+        "-sw",
+        "--s-workers",
+        type=int,
+        default=1,
+        help="Number of workers for spatial unwrapping. <=0 uses ncpus - 1.",
     )
     parser.add_argument(
         "-b",
@@ -80,7 +87,8 @@ def main(args=None):
 
     # Create solver settings
     slv_settings = SolverSettings(
-        t_worker_count=parsed_args.workers,
+        t_worker_count=parsed_args.t_workers,
+        s_worker_count=parsed_args.s_workers,
         links_per_batch=parsed_args.batchsize,
     )
 
