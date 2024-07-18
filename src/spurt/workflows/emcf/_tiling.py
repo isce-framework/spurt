@@ -6,6 +6,8 @@ from ._settings import GeneralSettings, TilerSettings
 
 logger = spurt.utils.logger
 
+__all__ = ["get_tiles"]
+
 
 def get_tiles(
     stack: spurt.io.SLCStackReader,

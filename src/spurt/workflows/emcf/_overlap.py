@@ -9,6 +9,8 @@ from ._settings import GeneralSettings, MergerSettings
 
 logger = spurt.utils.logger
 
+__all__ = ["compute_phasediff_deciles"]
+
 
 def compute_phasediff_deciles(
     gen_settings: GeneralSettings,
