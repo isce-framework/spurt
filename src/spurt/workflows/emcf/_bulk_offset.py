@@ -9,6 +9,8 @@ from ._settings import GeneralSettings, MergerSettings
 
 logger = spurt.utils.logger
 
+__all__ = ["get_bulk_offsets"]
+
 
 def get_bulk_offsets(
     stack: spurt.io.SLCStackReader,

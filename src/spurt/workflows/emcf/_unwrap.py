@@ -10,6 +10,8 @@ from ._solver import EMCFSolver
 
 logger = spurt.utils.logger
 
+__all__ = ["unwrap_tiles"]
+
 
 def unwrap_tiles(
     stack: spurt.io.SLCStackReader,

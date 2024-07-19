@@ -10,6 +10,8 @@ from ._settings import GeneralSettings, MergerSettings
 
 logger = spurt.utils.logger
 
+__all__ = ["merge_tiles"]
+
 
 def merge_tiles(
     stack: spurt.io.SLCStackReader,
