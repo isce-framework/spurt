@@ -150,9 +150,7 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
                     )
 
             # Create a pool and dispatch
-            with get_context("fork").Pool(
-                processes=worker_count, maxtasksperchild=1
-            ) as p:
+            with get_context("fork").Pool(processes=worker_count) as p:
                 mp_tasks = p.imap_unordered(wrap_solve, inv_inputs(range(nruns)))
 
                 # Gather results
