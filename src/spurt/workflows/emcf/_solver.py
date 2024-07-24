@@ -261,9 +261,9 @@ class EMCFSolver:
                 )
                 for ii in range(self.nifgs)
             ]
-        for fut in as_completed(futures):
-            ii, data = fut.result()
-            uw_data[ii, :] = data
+            for fut in as_completed(futures):
+                ii, data = fut.result()
+                uw_data[ii, :] = data
         return uw_data
 
     def _ifg_spatial_gradients_from_slc(
