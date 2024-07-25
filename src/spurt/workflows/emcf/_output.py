@@ -14,7 +14,7 @@ logger = spurt.utils.logger
 class Tile:
     """Utility class for managing one unwrapped tile."""
 
-    def __init__(self, fname: str, bandidx: int):
+    def __init__(self, fname: str):
         """Handle one tile of unwrapped output.
 
         Parameters
@@ -22,17 +22,15 @@ class Tile:
         fname: str
             Filename of intermediate HDF5 file with output for one unwrapped
             tile.
-        bandidx: int
-            0-based band index used to slice the output in time dimension.
         """
         self._fname: str = fname
-        self._idx: int = bandidx
+        self._idx: list[int] = []
         self._corrections: list[Any] = []
         self._graph_laplacian: Any | None = None
         self._correction_level: int = 0
 
     @property
-    def idx(self) -> int:
+    def idx(self) -> list[int]:
         """Band index currently being tracked."""
         return self._idx
 
@@ -52,11 +50,15 @@ class Tile:
 
     def get_uw_phase(self, level: int) -> np.ndarray:
         """Unwrapped phase with corrections applied to specified level."""
+        if not self._idx:
+            errmsg = "Band indices not initialized."
+            raise RuntimeError(errmsg)
+
         with h5py.File(self._fname, mode="r") as fid:
             uw_data: np.ndarray = fid["/uw_data"][self._idx, :]
-            offset: float = fid["/phase_offset"][self._idx]
+            offset: np.ndarray = fid["/phase_offset"][self._idx]
 
-        return sum([uw_data + offset] + self._corrections[:level])
+        return sum([uw_data + offset[:, None]] + self._corrections[:level])
 
     def get_corrections_sum(self, level: int) -> np.ndarray:
         """Corrections to unwrapped phase up to a specified level."""
@@ -89,9 +91,11 @@ class Tile:
 
     def add_correction(self, a) -> None:
         """Add a constant or pixel-by-pixel correction."""
-        if isinstance(a, numbers.Number) or (
-            isinstance(a, np.ndarray) and a.size == self.coords.shape[0]
-        ):
+        if isinstance(a, numbers.Number):
+            self._corrections.append(a)
+        elif isinstance(a, np.ndarray) and a.size == 1:
+            self._corrections.append(a.item())
+        elif isinstance(a, np.ndarray) and a.shape[-1] == self.coords.shape[0]:
             self._corrections.append(a)
         else:
             errmsg = "Cannot process correction"
@@ -115,7 +119,7 @@ class Tile:
             errmsg = "More than one correction in compress mode"
             raise RuntimeError(errmsg)
 
-    def reset_band_index(self, newidx: int) -> None:
+    def reset_band_index(self, newidx: list[int]) -> None:
         """Change current band index."""
         self._idx = newidx
         # This needs to be reset since we are looking at a new band now
@@ -142,7 +146,7 @@ def write_single_tile(
             continue
 
         # Reset tile band index
-        tile.reset_band_index(ii)
+        tile.reset_band_index([ii])
 
         arr = np.full(shape, np.nan, dtype=np.float32)
         arr[coords[:, 0], coords[:, 1]] = tile.raw_uw_phase
@@ -180,8 +184,11 @@ def write_merged_band(
 
     # check that we are looking at the same band in all tiles
     for tile in tiles.values():
-        assert tile.idx == idx, "Band index mismatch"
+        assert idx in tile.idx, "Band index mismatch"
         assert tile.correction_level == 1, "Only one offset supported"
+
+    # Get the index of idx in batch
+    ind = tile.idx.index(idx)
 
     # Create full sized array
     model = np.zeros(shape, dtype=np.float32)
@@ -195,11 +202,11 @@ def write_merged_band(
         c0 = coords[:, 0]
         c1 = coords[:, 1]
 
-        data = tile.uw_phase
+        data = tile.uw_phase[ind]
         minval[c0, c1] = np.minimum(data, minval[c0, c1])
         maxval[c0, c1] = np.maximum(data, maxval[c0, c1])
 
-        model[c0, c1] += tile.uw_phase
+        model[c0, c1] += data
         cnt[c0, c1] += 1
 
     mask = cnt != 0

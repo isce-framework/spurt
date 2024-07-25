@@ -35,7 +35,7 @@ def merge_tiles(
     tiles: dict[int, Tile] = {}
     for ii in range(tiledata.ntiles):
         # Use band 0 as place holder
-        tiles[ii] = Tile(str(gen_settings.tile_filename(ii)), 0)
+        tiles[ii] = Tile(str(gen_settings.tile_filename(ii)))
 
     # Preparing file names
     ifgs = g_time.links
@@ -62,26 +62,53 @@ def merge_tiles(
         grp = fid[mrg_settings.bulk_method]
         bulk_offsets = grp["offsets"][...]
 
-    # Write band-by-band
+    # Write batch-by-batch
     nifgs = len(fnames)
-    for ii, fname in enumerate(fnames):
-        if fname.is_file():
-            logger.info(f"{fname!s} already exists. Skipping merging band {ii + 1}.")
+
+    batch_size = min(mrg_settings.num_parallel_ifgs, nifgs)
+    if batch_size < 1:
+        batch_size = nifgs
+    logger.info(f"Merging batches of {batch_size} interferograms")
+
+    batch_start = np.arange(0, nifgs, batch_size, dtype=int)
+
+    for bnum, bstart in enumerate(batch_start):
+        bend = min(bstart + batch_size, nifgs)
+        if (bend - bstart) <= 0:
             continue
 
-        logger.info(f"Merging band {ii + 1} of {nifgs}")
+        # Process bstart to bend interferograms
+        if batch_size > 1:
+            logger.info(f"Merging batch {bnum + 1} from {bstart + 1} to {bend + 1}")
+
+        # Check if batch already processed
+        idx = []
+        for ii in range(bstart, bend):
+            fname = fnames[ii]
+            if fname.is_file():
+                logger.info(
+                    f"{fname!s} already exists. Skipping merging band {ii + 1}."
+                )
+            else:
+                idx.append(ii)
+
+        if not idx:
+            logger.info(f"Batch {bnum + 1} already processed. Skipping ..")
+            continue
 
         # Initialize each tile for the right band with bulk offset
         for jj, tile in tiles.items():
-            tile.reset_band_index(ii)
-            tile.add_correction(np.float32(-2 * np.pi * bulk_offsets[ii, jj]))
+            tile.reset_band_index(idx)
+            tile.add_correction(np.float32(-2 * np.pi * bulk_offsets[idx, jj]))
             tile.increment_correction()
 
         # Adjust the tiles
         _adjust_tiles(tiles, overlap_map, gen_settings, max_degree, debug_stats=False)
 
-        # Write file to output
-        write_merged_band(tiles, fname, ii, tiledata.shape, like=like_slc_file)
+        # Write file to output band-by-band
+        for ii in idx:
+            fname = fnames[ii]
+            write_merged_band(tiles, fname, ii, tiledata.shape, like=like_slc_file)
 
     return fnames
 
@@ -118,7 +145,7 @@ def _adjust_tiles(
                 else:
                     idx_j, idx_i = _get_common_overlap(gen_settings, jj, ii)
                 c[idx_i] += 1
-                s[idx_i] += tile_j.uw_phase[idx_j]
+                s[:, idx_i] += tile_j.uw_phase[:, idx_j]
 
             if np.sum(c >= overlap_degree) == 0:
                 continue
@@ -126,15 +153,19 @@ def _adjust_tiles(
             raw_correction = overlap_average - data
 
             logger.info("Solving Dirichlet problem")
-            correction = spurt.utils.merge.dirichlet(
-                tile_i.graph_laplacian,
-                np.zeros(s.size),
-                raw_correction,
-                c >= overlap_degree,
-                enable_logging=True,
-            )[0]
+            correction = np.zeros(raw_correction.shape, dtype=np.float32)
+            # Solve Dirichlet one-by-one
+            # scipy cg only supports on rhs at a time
+            for kk in range(correction.shape[0]):
+                correction[kk, :] = spurt.utils.merge.dirichlet(
+                    tile_i.graph_laplacian,
+                    np.zeros(c.size),
+                    raw_correction[kk],
+                    c >= overlap_degree,
+                    enable_logging=True,
+                )[0]
 
-            tile_i.add_correction(correction.astype(np.float32))
+            tile_i.add_correction(correction)
 
         # Pop last element to keep corrections for using a lot of memory
         for _, tile in tiles.items():
