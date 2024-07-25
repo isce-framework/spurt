@@ -20,6 +20,10 @@ def unwrap_tiles(
     solv_settings: SolverSettings,
 ) -> None:
     """Unwrap each tile and save to h5."""
+    if solv_settings.num_parallel_tiles != 1:
+        errmsg = "This is a feature under development. Set num_parallel_tiles=1."
+        raise NotImplementedError(errmsg)
+
     # Temporal graph
     s_time = spurt.mcf.ORMCFSolver(g_time)  # type: ignore[abstract]
 

@@ -32,6 +32,8 @@ class SolverSettings:
         'centroid'.
     s_cost_scale: float
         Scale factor used in computing edge costs for spatial unwrapping.
+    num_parallel_tiles: int
+        Number of tiles to process in parallel. Set to 0 for all tiles.
     """
 
     t_worker_count: int = 0
@@ -41,6 +43,7 @@ class SolverSettings:
     t_cost_scale: float = 100.0
     s_cost_type: str = "constant"
     s_cost_scale: float = 100.0
+    num_parallel_tiles: int = 1
 
     def __post_init__(self):
         cost_types = {"constant", "distance", "centroid"}
@@ -170,7 +173,7 @@ class MergerSettings:
     bulk_method: str
         Method used to estimate bulk offset between tiles. Supported methods
         are 'integer' and 'L2'.
-    batch_size: int
+    num_parallel_ifgs: int
         Number of interferograms to merge in one batch. Use zero to merge all
         interferograms in a single batch.
     """
@@ -178,7 +181,7 @@ class MergerSettings:
     min_overlap_points: int = 25
     method: str = "dirichlet"
     bulk_method: str = "L2"
-    batch_size: int = 1
+    num_parallel_ifgs: int = 1
 
     def __post_init__(self):
         bulk_methods = {"integer", "L2"}
