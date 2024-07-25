@@ -51,7 +51,7 @@ def main(args=None):
         "-b",
         "--batchsize",
         type=int,
-        default=50000,
+        default=150000,
         help="Links per batch for temporal unwrapping.",
     )
     parser.add_argument(
@@ -60,6 +60,9 @@ def main(args=None):
         type=float,
         default=0.6,
         help="Temporal coherence threshold for good pixels.",
+    )
+    parser.add_argument(
+        "--pts-per-tile", type=int, default=800000, help="Target points per tile"
     )
     parser.add_argument(
         "--singletile", action="store_true", help="Process as a single tile."
@@ -82,7 +85,7 @@ def main(args=None):
     )
 
     # Create tile settings
-    tile_settings = TilerSettings()
+    tile_settings = TilerSettings(target_points_per_tile=parsed_args.pts_per_tile)
 
     # Create solver settings
     slv_settings = SolverSettings(
