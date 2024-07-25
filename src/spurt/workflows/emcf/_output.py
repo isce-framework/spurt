@@ -28,6 +28,10 @@ class Tile:
         self._corrections: list[Any] = []
         self._graph_laplacian: Any | None = None
         self._correction_level: int = 0
+        self._uwdata: np.ndarray | None = None
+        self._coords: np.ndarray | None = None
+
+        self.init_coords()
 
     @property
     def idx(self) -> list[int]:
@@ -39,26 +43,36 @@ class Tile:
         """Correction level being tracked."""
         return self._correction_level
 
-    @property
-    def coords(self) -> np.ndarray:
+    def init_coords(self) -> None:
         """Point coordinates in global grid."""
         with h5py.File(self._fname, mode="r") as fid:
             pts = fid["/points"][...]
             tile = fid["/tile"][...]
 
-        return pts + tile[None, :2]
+        self._coords = pts + tile[None, :2]
 
-    def get_uw_phase(self, level: int) -> np.ndarray:
-        """Unwrapped phase with corrections applied to specified level."""
+    @property
+    def coords(self) -> np.ndarray:
+        """Return point coordinates."""
+        return self._coords
+
+    def init_uw_data(self) -> None:
+        """Initialize with unwrapped tile data."""
+        self.check_idx()
+        with h5py.File(self._fname, mode="r") as fid:
+            uw_data: np.ndarray = fid["/uw_data"][self._idx, :]
+            offset: np.ndarray = np.expand_dims(fid["/phase_offset"][self._idx], 1)
+
+        self._uwdata = uw_data + offset
+
+    def check_idx(self) -> None:
         if not self._idx:
             errmsg = "Band indices not initialized."
             raise RuntimeError(errmsg)
 
-        with h5py.File(self._fname, mode="r") as fid:
-            uw_data: np.ndarray = fid["/uw_data"][self._idx, :]
-            offset: np.ndarray = fid["/phase_offset"][self._idx]
-
-        return sum([uw_data + offset[:, None]] + self._corrections[:level])
+    def get_uw_phase(self, level: int) -> np.ndarray:
+        """Unwrapped phase with corrections applied to specified level."""
+        return self._uwdata + self.get_corrections_sum(level)
 
     def get_corrections_sum(self, level: int) -> np.ndarray:
         """Corrections to unwrapped phase up to a specified level."""
@@ -95,6 +109,8 @@ class Tile:
             self._corrections.append(a)
         elif isinstance(a, np.ndarray) and a.size == 1:
             self._corrections.append(a.item())
+        elif isinstance(a, np.ndarray) and a.ndim == 1 and a.size == len(self._idx):
+            self._corrections.append(np.expand_dims(a, 1))
         elif isinstance(a, np.ndarray) and a.shape[-1] == self.coords.shape[0]:
             self._corrections.append(a)
         else:
@@ -113,7 +129,7 @@ class Tile:
     def compress_corrections(self) -> None:
         """Compress corrections to single level to reduce memory usage."""
         if len(self._corrections) > 1:
-            self._corrections[0] += self._corrections.pop()
+            self._corrections[0] = self._corrections[0] + self._corrections.pop()
 
         if len(self._corrections) > 1:
             errmsg = "More than one correction in compress mode"
@@ -122,6 +138,7 @@ class Tile:
     def reset_band_index(self, newidx: list[int]) -> None:
         """Change current band index."""
         self._idx = newidx
+        self.init_uw_data()
         # This needs to be reset since we are looking at a new band now
         self.reset_corrections()
 
@@ -223,7 +240,7 @@ def write_merged_band(
         c0 = coords[:, 0]
         c1 = coords[:, 1]
         mmodel = model[c0, c1]
-        d = tile.raw_uw_phase - mmodel
+        d = tile.raw_uw_phase[ind] - mmodel
 
         arr[c0, c1] = mmodel + d - 2 * np.pi * np.round(d / (2 * np.pi))
 

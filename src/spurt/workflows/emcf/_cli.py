@@ -62,7 +62,16 @@ def main(args=None):
         help="Temporal coherence threshold for good pixels.",
     )
     parser.add_argument(
-        "--pts-per-tile", type=int, default=800000, help="Target points per tile"
+        "--pts-per-tile",
+        type=int,
+        default=800000,
+        help="Target points per tile.",
+    )
+    parser.add_argument(
+        "--merge-parallel-ifgs",
+        type=int,
+        default=1,
+        help="Number of ifgs to merge in parallel.",
     )
     parser.add_argument(
         "--singletile", action="store_true", help="Process as a single tile."
@@ -95,7 +104,9 @@ def main(args=None):
     )
 
     # Create merger settings
-    mrg_settings = MergerSettings()
+    mrg_settings = MergerSettings(
+        num_parallel_ifgs=parsed_args.merge_parallel_ifgs,
+    )
 
     # Using default Hop3Graph
     logger.info(f"Using Hop3 Graph in time with {len(stack.slc_files)} epochs.")

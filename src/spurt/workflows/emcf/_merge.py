@@ -24,10 +24,6 @@ def merge_tiles(
         errmsg = "dirichlet is the only merge method supported."
         raise NotImplementedError(errmsg)
 
-    if mrg_settings.num_parallel_ifgs != 1:
-        errmsg = "This is a feature under development. Set num_parallel_ifgs=1."
-        raise NotImplementedError(errmsg)
-
     # Load tile json
     tiledata = spurt.utils.TileSet.from_json(gen_settings.tiles_jsonname)
 
@@ -79,7 +75,7 @@ def merge_tiles(
 
         # Process bstart to bend interferograms
         if batch_size > 1:
-            logger.info(f"Merging batch {bnum + 1} from {bstart + 1} to {bend + 1}")
+            logger.info(f"Merging batch {bnum + 1} from {bstart + 1} to {bend}")
 
         # Check if batch already processed
         idx = []
