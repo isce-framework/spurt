@@ -170,11 +170,15 @@ class MergerSettings:
     bulk_method: str
         Method used to estimate bulk offset between tiles. Supported methods
         are 'integer' and 'L2'.
+    batch_size: int
+        Number of interferograms to merge in one batch. Use zero to merge all
+        interferograms in a single batch.
     """
 
     min_overlap_points: int = 25
     method: str = "dirichlet"
     bulk_method: str = "L2"
+    batch_size: int = 1
 
     def __post_init__(self):
         bulk_methods = {"integer", "L2"}
