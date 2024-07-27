@@ -2,9 +2,6 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from numpy.linalg import norm as lpnorm
-from scipy.sparse import csc_matrix
-from scipy.sparse.linalg import LinearOperator, cg, spilu
 
 import spurt
 
@@ -153,26 +150,26 @@ def _adjust_tiles(
 
             logger.info("Solving Dirichlet problem")
 
+            correction = spurt.utils.merge.dirichlet_graph(
+                tile_i.graph_laplacian,
+                raw_correction,
+                c >= overlap_degree,
+                enable_logging=True,
+            )
+
             if False:
-                correction = np.zeros(raw_correction.shape, dtype=np.float32)
+                old_correction = np.zeros(raw_correction.shape, dtype=np.float32)
 
                 # Solve Dirichlet one-by-one
                 # scipy cg only supports on rhs at a time
                 for kk in range(correction.shape[0]):
-                    correction[kk, :] = spurt.utils.merge.dirichlet(
+                    old_correction[kk, :] = spurt.utils.merge.dirichlet(
                         tile_i.graph_laplacian,
                         np.zeros(c.size),
                         raw_correction[kk],
                         c >= overlap_degree,
                         enable_logging=True,
                     )[0]
-            else:
-                correction = _dirichlet_graph(
-                    tile_i.graph_laplacian,
-                    raw_correction,
-                    c >= overlap_degree,
-                    enable_logging=True,
-                )
 
             tile_i.add_correction(correction)
 
@@ -247,71 +244,3 @@ def _get_max_degree(tiles: dict[int, Tile], shape: tuple[int, int]) -> int:
         count[coords[:, 0], coords[:, 1]] += 1
 
     return int(count.max())
-
-
-def _dirichlet_graph(
-    amat: csc_matrix,
-    xf: np.ndarray,
-    mask: np.ndarray,
-    maxiter: int | None = 100,
-    *,
-    enable_logging: bool = False,
-) -> np.ndarray:
-    """Specialized implementation of spurt.utils.merge.dirichlet.
-
-    Parameters
-    ----------
-    amat : array-like [m, m]
-        Square matrix.
-    xf : array-like [n, m]
-    Fixed data, only xf[:, mask] is significant as input.
-    mask : array-like[m] of bool
-    mask[i] is true if x[:, i] should be forced to equal xf[:, i]
-    enable_logging: bool
-        Optional, enable logger to capture diagnostic messages.
-
-    Returns
-    -------
-    x: array-like [n, m]
-    """
-    assert amat.shape[0] == amat.shape[1]
-    assert amat.shape[0] == xf.shape[1]
-
-    corrections = np.zeros(xf.shape, dtype=np.float32)
-    corrections[:, :] = xf[:, :]
-
-    # This part is from l2_min_cg
-    # We reuse the pre-conditioner here
-    mat = amat[:, ~mask][~mask, :].copy()
-    pre = spilu(mat, fill_factor=100)
-
-    for kk in range(xf.shape[0]):
-        b = -amat[:, mask].dot(xf[kk, mask])[~mask]
-
-        assert mat.shape[0] == b.shape[0]
-        if np.size(amat) == 0 and enable_logging:
-            logger.warning("A is empty; returning all zeros")
-            corrections[kk, ~mask] = 0
-            continue
-
-        if np.all(b == 0) and enable_logging:
-            logger.info("b is identically zero, returning zero.")
-            corrections[kk, ~mask] = 0
-            continue
-
-        x, info = cg(
-            mat,
-            b,
-            tol=1e-7,
-            atol=1e-7,
-            maxiter=maxiter,
-            M=LinearOperator(mat.shape, pre.solve),
-        )
-
-        r: np.ndarray = b - mat.dot(x)
-        if enable_logging and (maxiter is not None):
-            logger.info(f"Relative residual size {lpnorm(r, 2) / lpnorm(b, 2)}. ")
-
-        corrections[kk, ~mask] = x
-
-    return corrections
