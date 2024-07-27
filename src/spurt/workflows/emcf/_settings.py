@@ -14,11 +14,12 @@ class SolverSettings:
     ----------
     t_worker_count: int
         Number of workers for temporal unwrapping in parallel. Set value to <=0
-        to let workflow use default workers (ncpus - 1).
+        to let workflow use default workers (ncpus - 1). Must be set when
+        num_parallel_tiles > 1.
     s_worker_count: int
         Number of workers for spatial unwrapping in parallel. Set value to <=0
-        to let workflow use (ncpus - 1).
-        Defaults to 1 (i.e. unwrap one interferogram in space at a time).
+        to let workflow use (ncpus - 1). Must be set when
+        num_parallel_tiles > 1.
     links_per_batch: int
         Temporal unwrapping operations over spatial links are performed in batches
         and each batch is solved in parallel.
@@ -37,7 +38,7 @@ class SolverSettings:
     """
 
     t_worker_count: int = 0
-    s_worker_count: int = 1
+    s_worker_count: int = 0
     links_per_batch: int = 10000
     t_cost_type: str = "constant"
     t_cost_scale: float = 100.0
@@ -62,6 +63,28 @@ class SolverSettings:
         if self.s_cost_scale <= 0.0:
             errmsg = f"s_cost_scale must be > 0, got {self.s_cost_scale}"
             raise ValueError(errmsg)
+
+        # num_parallel_tiles must be explicit - no system based defaults
+        if self.num_parallel_tiles < 1:
+            errmsg = f"num_parallel_tiles must be >= 1, got {self.num_parallel_tiles}"
+            raise ValueError(errmsg)
+
+        # if more than one tile being processed in parallel,
+        # worker counts must be set explicitly
+        if self.num_parallel_tiles > 1:
+            if self.t_worker_count < 1:
+                errmsg = (
+                    "t_worker_count must be explicitly set"
+                    " when processing tiles in parallel"
+                )
+                raise ValueError(errmsg)
+
+            if self.s_worker_count < 1:
+                errmsg = (
+                    "s_worker_count must be explicitly set"
+                    " when processing tiles in parallel"
+                )
+                raise ValueError(errmsg)
 
 
 @dataclass
