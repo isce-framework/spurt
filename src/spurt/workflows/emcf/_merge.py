@@ -157,20 +157,6 @@ def _adjust_tiles(
                 enable_logging=True,
             )
 
-            if False:
-                old_correction = np.zeros(raw_correction.shape, dtype=np.float32)
-
-                # Solve Dirichlet one-by-one
-                # scipy cg only supports on rhs at a time
-                for kk in range(correction.shape[0]):
-                    old_correction[kk, :] = spurt.utils.merge.dirichlet(
-                        tile_i.graph_laplacian,
-                        np.zeros(c.size),
-                        raw_correction[kk],
-                        c >= overlap_degree,
-                        enable_logging=True,
-                    )[0]
-
             tile_i.add_correction(correction)
 
         # Pop last element to keep corrections for using a lot of memory

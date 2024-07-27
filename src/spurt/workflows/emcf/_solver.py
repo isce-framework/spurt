@@ -9,7 +9,7 @@ import numpy as np
 from spurt.io import Irreg3DInput
 from spurt.links import LinkModelInterface
 from spurt.mcf import MCFSolverInterface, utils
-from spurt.utils import logger
+from spurt.utils import get_cpu_count, logger
 
 from ._settings import SolverSettings
 
@@ -250,7 +250,10 @@ class EMCFSolver:
         logger.info(f"Spatial: Number of links: {self.nlinks}")
         logger.info(f"Spatial: Number of cycles: {self._solver_space.ncycles}")
 
-        with ProcessPoolExecutor(max_workers=self.settings.s_worker_count) as executor:
+        nworkers = self.settings.s_worker_count
+        if nworkers < 1:
+            nworkers = get_cpu_count() - 1
+        with ProcessPoolExecutor(max_workers=nworkers) as executor:
             futures = [
                 executor.submit(
                     _unwrap_ifg_in_space,
