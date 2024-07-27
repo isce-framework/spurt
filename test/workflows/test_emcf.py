@@ -113,7 +113,10 @@ def test_emcf_eq():
     s_space = spurt.mcf.ORMCFSolver(g_space)
 
     # Create EMCF solver
-    settings = spurt.workflows.emcf.SolverSettings()
+    settings = spurt.workflows.emcf.SolverSettings(
+        s_worker_count=1,
+        t_worker_count=1,
+    )
     solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
 
     w_data = spurt.io.Irreg3DInput(

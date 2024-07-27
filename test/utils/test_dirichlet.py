@@ -29,9 +29,16 @@ def test_dirichlet():
     # Solve the Dirichlet problem.
     x, _ = spurt.utils.merge.dirichlet(lap, np.zeros(lap.shape[0]), pt_data, mask)
 
+    # Solve the Dirichlet graph
+    xg = spurt.utils.merge.dirichlet_graph(lap, np.expand_dims(pt_data, 0), mask)
+
     # x and pt_data should agree on the mask.
     assert np.all(x[mask] == pt_data[mask])
+    assert np.all(xg[0, mask] == pt_data[mask])
 
     # There should be no extrema outside the mask.
     assert np.max(x[mask]) <= np.max(pt_data[mask])
     assert np.min(x[mask]) >= np.min(pt_data[mask])
+
+    # Check that dirichlet_graph matches dirichlet
+    assert np.allclose(x, xg[0], atol=1.0e-4)
