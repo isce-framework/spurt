@@ -38,7 +38,7 @@ class SolverSettings:
     """
 
     t_worker_count: int = 0
-    s_worker_count: int = 0
+    s_worker_count: int = 1
     links_per_batch: int = 10000
     t_cost_type: str = "constant"
     t_cost_scale: float = 100.0
