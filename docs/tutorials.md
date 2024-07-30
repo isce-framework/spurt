@@ -1,5 +1,10 @@
 # Tutorials
 
+1. [Planar graphs](./tutorials/planar-graph.md)
+2. [2D Minimum Cost Flow](./tutorials/mcf-2d.md)
+3. [3D Extended MCF workflow](./tutorials/emcf-3d.md)
+
+
 <!-- This part of the project documentation will contain step-by-step instructions for learning about spurt. -->
 
 <!-- **learning-oriented** approach. You'll learn how to
