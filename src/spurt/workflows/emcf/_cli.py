@@ -74,6 +74,12 @@ def main(args=None):
         help="Number of ifgs to merge in parallel.",
     )
     parser.add_argument(
+        "--unwrap-parallel-tiles",
+        type=int,
+        default=1,
+        help="Number of tiles to unwrap in parallel.",
+    )
+    parser.add_argument(
         "--singletile", action="store_true", help="Process as a single tile."
     )
 
@@ -101,6 +107,7 @@ def main(args=None):
         t_worker_count=parsed_args.t_workers,
         s_worker_count=parsed_args.s_workers,
         links_per_batch=parsed_args.batchsize,
+        num_parallel_tiles=parsed_args.unwrap_parallel_tiles,
     )
 
     # Create merger settings
