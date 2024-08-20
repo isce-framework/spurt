@@ -39,7 +39,6 @@ test = [
   "pytest-cov>=3"
 ]
 docs = [
-  "mdx_bib @ git+https://github.com/bobmyhill/mdx_bib.git@6b13bbbc407617a5e93ed0f8a0e5e4c52f73f677",
   "mkdocs",
   "mkdocs-gen-files",
   "mkdocs-jupyter",
@@ -123,6 +122,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
 "test/**" = ["D"]
+"docs/mdx_bib.py" = ["ALL"] # ignore the vendored code
+
 
 [tool.ruff.lint.flake8-pytest-style]
 fixture-parentheses = false
