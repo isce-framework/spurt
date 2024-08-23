@@ -45,6 +45,7 @@ docs = [
   "mkdocs-literate-nav",
   "mkdocs-material",
   "mkdocs-section-index",
+  "mkdocs-mermaid2-plugin",
   "mkdocstrings[python]",
   "pymdown-extensions",
 ]
