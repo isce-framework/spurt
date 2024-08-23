@@ -44,6 +44,12 @@ markdown_extensions:
   - docs.mdx_bib:
       bibtex_file: docs/references.bib
       order: 'unsorted'
+  - pymdownx.superfences:
+        # make exceptions to highlighting of code:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
 
 extra_javascript:
   - javascripts/mathjax.js

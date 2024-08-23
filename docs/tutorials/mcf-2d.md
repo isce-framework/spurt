@@ -27,7 +27,7 @@ A sparse 2D grid unwrapper can be implemented as follows using `spurt`
 # igram is a 1D array of type np.complex64 and length npts
 # xy is a npts x 2 array with coordinates of pixels
 
-g = spurt.graph.DelaunayGraph(spurt.graph.Reg2DGraph(xy)
+graph = spurt.graph.DelaunayGraph(xy)
 solver = spurt.mcf.ORMCFSolver(graph)
 
 # Use unit cost
