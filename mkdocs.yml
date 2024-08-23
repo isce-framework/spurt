@@ -11,28 +11,29 @@ theme:
 
 
 plugins:
-- search
-# plugin suggestions from here: https://mkdocstrings.github.io/recipes/
-- autorefs
-- gen-files:
-    scripts:
-    - docs/gen_ref_pages.py
-# https://github.com/oprypin/mkdocs-literate-nav
-- literate-nav:
-    nav_file: summary.md
-# https://mkdocstrings.github.io/python/usage/
-- mkdocstrings:
-    handlers:
-      python:
-        paths: [src]
-        options:
-          docstring_style: numpy
-          members_order: alphabetical # source
-        import:
-        - https://docs.scipy.org/doc/scipy/objects.inv  # scipy doc objects
-- mkdocs-jupyter:
-    include: ["docs/notebooks/*.ipynb"]
-    ignore: ["docs/notebooks/data/*"]
+  - search
+  - mermaid2
+  # plugin suggestions from here: https://mkdocstrings.github.io/recipes/
+  - autorefs
+  - gen-files:
+      scripts:
+      - docs/gen_ref_pages.py
+  # https://github.com/oprypin/mkdocs-literate-nav
+  - literate-nav:
+      nav_file: summary.md
+  # https://mkdocstrings.github.io/python/usage/
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            members_order: alphabetical # source
+          import:
+          - https://docs.scipy.org/doc/scipy/objects.inv  # scipy doc objects
+  - mkdocs-jupyter:
+      include: ["docs/notebooks/*.ipynb"]
+      ignore: ["docs/notebooks/data/*"]
 
 markdown_extensions:
   - pymdownx.arithmatex:
