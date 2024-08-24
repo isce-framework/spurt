@@ -8,19 +8,25 @@ Let $G_s$ and $G_t$ represent the planar graphs in spatial domain (typically a D
 
 ```mermaid
 graph TD
-    A["wrapped SLC stack $$\psi_x^i$$"] -->|"For every ifg ij of $$G_t$$"| B["wrapped IFG stack $$\psi_{{x}}^{ij}$$"]
-    B --> |"For every edge xy of $$G_s$$"| C["unwrapped spatial gradients in time $$\Delta \phi_{{xy}}^{{ij}}$$"]
-    C --> |"For every ifg of $$G_t$$"| D["unwrapped interferograms $$\phi_{{xy}}^{{ij}}$$"]
+    A["$$\psi_x^i$$" - wrapped SLC stack]
+    B["$$\psi_{{x}}^{ij}$$" - wrapped IFG stack]
+    C["$$\Delta \phi_{{xy}}^{{ij}}$$" - unwrapped spatial gradients in time]
+    D["$$\phi_{{x}}^{{ij}}$$" - unwrapped interferograms]
+
+
+    A -->|"$$G_t$$" - for every ifg ij| B
+    B -->|"$$G_s$$" - for every spatial edge xy| C
+    C -->|"$$G_t$$" - for every ifg ij| D
 ```
 
 ## Example 3D EMCF
 
 ``` py
-# igram is a 3D array of type np.complex64 and shape (n_sar, n_pts)
+# cslc is a 3D array of type np.complex64 and shape (n_sar, n_pts)
 # xy is a n_pts x 2 array with coordinates of pixels
 
 # Set up time processing
-g_time = spurt.graph.Hop3Graph(igram.shape[0])
+g_time = spurt.graph.Hop3Graph(cslc.shape[0])
 s_stime = spurt.mcf.ORMCFSolver(g_time)
 
 # Set up spatial processing
@@ -32,7 +38,7 @@ settings = spurt.workflows.emcf.SolverSettings(t_worker=1)
 solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
 
 w_data = spurt.io.Irreg3DInput(
-    igram, g_space.points
+    cslc, g_space.points
 )
 uw_data = solver.unwrap_cube(w_data)
 
