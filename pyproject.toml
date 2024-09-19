@@ -47,6 +47,7 @@ docs = [
   "mkdocs-section-index",
   "mkdocs-mermaid2-plugin",
   "mkdocstrings[python]",
+  "pybtex", # for mdx_bib
   "pymdown-extensions",
 ]
 
