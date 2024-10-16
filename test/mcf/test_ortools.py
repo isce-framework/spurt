@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 import spurt
 
@@ -205,9 +204,8 @@ def test_residues():
     np.testing.assert_array_equal(pts_resid, grads_resid)
 
 
-@pytest.mark.parametrize("scale", [None, 1, 10])
-def test_distance_costs(scale):
-    g_time = spurt.graph.Hop3Graph(10)
+def test_distance_costs():
+    g_time = spurt.graph.Hop3Graph(5)
     s_time = spurt.mcf.ORMCFSolver(g_time)
-    out = spurt.mcf.utils.distance_costs(s_time.points, edges=s_time.edges, scale=scale)
-    assert out is None
+    out = spurt.mcf.utils.distance_costs(s_time.points, edges=s_time.edges, scale=100)
+    assert np.all(out == np.array([101, 51, 34, 101, 51, 34, 101, 51, 101]))
