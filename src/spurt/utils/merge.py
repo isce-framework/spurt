@@ -196,7 +196,7 @@ def l2_min_cg(
     x, info = cg(
         mat,
         rhs,
-        tol=1e-7,
+        rtol=1e-7,
         atol=1e-7,
         x0=x0,
         maxiter=maxiter,
@@ -345,7 +345,7 @@ def dirichlet_graph(
         x, info = cg(
             mat,
             b,
-            tol=1e-7,
+            rtol=1e-7,
             atol=1e-7,
             maxiter=maxiter,
             M=LinearOperator(mat.shape, pre.solve),
