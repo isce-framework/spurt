@@ -202,3 +202,10 @@ def test_residues():
     pts_resid = solver.compute_residues(point_data)
     grads_resid = solver.compute_residues_from_gradients(grads)
     np.testing.assert_array_equal(pts_resid, grads_resid)
+
+
+def test_distance_costs():
+    g_time = spurt.graph.Hop3Graph(5)
+    s_time = spurt.mcf.ORMCFSolver(g_time)
+    out = spurt.mcf.utils.distance_costs(s_time.points, edges=s_time.edges, scale=100)
+    assert np.all(out == np.array([101, 51, 34, 101, 51, 34, 101, 51, 101]))
