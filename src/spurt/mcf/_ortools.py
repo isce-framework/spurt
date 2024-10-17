@@ -47,7 +47,7 @@ class ORMCFSolver(MCFSolverInterface):
         return self._graph.npoints
 
     @property
-    def points(self) -> int:
+    def points(self) -> np.ndarray:
         return self._graph.points
 
     @property
