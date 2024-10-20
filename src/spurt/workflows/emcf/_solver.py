@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -253,7 +254,13 @@ class EMCFSolver:
         nworkers = self.settings.s_worker_count
         if nworkers < 1:
             nworkers = get_cpu_count() - 1
-        with ProcessPoolExecutor(max_workers=nworkers) as executor:
+        ctx = multiprocessing.get_context("spawn")
+        from spurt.utils import DummyProcessPoolExecutor
+
+        executor_class = (
+            DummyProcessPoolExecutor if nworkers > 1 else ProcessPoolExecutor
+        )
+        with executor_class(max_workers=nworkers, mp_context=ctx) as executor:
             futures = [
                 executor.submit(
                     _unwrap_ifg_in_space,

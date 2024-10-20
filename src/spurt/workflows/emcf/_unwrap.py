@@ -1,3 +1,4 @@
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -25,7 +26,12 @@ def unwrap_tiles(
     tile_json = gen_settings.tiles_jsonname
     tiledata = spurt.utils.TileSet.from_json(tile_json)
 
-    with ProcessPoolExecutor(max_workers=solv_settings.num_parallel_tiles) as executor:
+    max_workers = solv_settings.num_parallel_tiles
+    executor_class = (
+        ProcessPoolExecutor if max_workers > 1 else spurt.utils.DummyProcessPoolExecutor
+    )
+    mp_context = multiprocessing.get_context("spawn")
+    with executor_class(max_workers=max_workers, mp_context=mp_context) as executor:
         futures = []
 
         # Iterate over tiles
