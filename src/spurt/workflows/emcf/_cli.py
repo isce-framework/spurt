@@ -80,6 +80,12 @@ def main(args=None):
         help="Target points per tile.",
     )
     parser.add_argument(
+        "--max-tiles",
+        type=int,
+        default=49,
+        help="Maximum number of tiles allowed during tile formation.",
+    )
+    parser.add_argument(
         "--merge-parallel-ifgs",
         type=int,
         default=1,
@@ -112,7 +118,10 @@ def main(args=None):
     )
 
     # Create tile settings
-    tile_settings = TilerSettings(target_points_per_tile=parsed_args.pts_per_tile)
+    tile_settings = TilerSettings(
+        target_points_per_tile=parsed_args.pts_per_tile,
+        max_tiles=parsed_args.max_tiles,
+    )
 
     # Create solver settings
     slv_settings = SolverSettings(
