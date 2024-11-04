@@ -62,10 +62,28 @@ def main(args=None):
         help="Temporal coherence threshold for good pixels.",
     )
     parser.add_argument(
+        "--t-cost-type",
+        choices=["constant", "distance", "centroid"],
+        default="constant",
+        help="Temporal unwrapping costs.",
+    )
+    parser.add_argument(
+        "--t-cost-scale",
+        type=int,
+        default=100,
+        help="Scale factor used in computing edge costs for temporal unwrapping.",
+    )
+    parser.add_argument(
         "--pts-per-tile",
         type=int,
         default=800000,
         help="Target points per tile.",
+    )
+    parser.add_argument(
+        "--max-tiles",
+        type=int,
+        default=49,
+        help="Maximum number of tiles allowed during tile formation.",
     )
     parser.add_argument(
         "--merge-parallel-ifgs",
@@ -100,7 +118,10 @@ def main(args=None):
     )
 
     # Create tile settings
-    tile_settings = TilerSettings(target_points_per_tile=parsed_args.pts_per_tile)
+    tile_settings = TilerSettings(
+        target_points_per_tile=parsed_args.pts_per_tile,
+        max_tiles=parsed_args.max_tiles,
+    )
 
     # Create solver settings
     slv_settings = SolverSettings(
@@ -108,6 +129,8 @@ def main(args=None):
         s_worker_count=parsed_args.s_workers,
         links_per_batch=parsed_args.batchsize,
         num_parallel_tiles=parsed_args.unwrap_parallel_tiles,
+        t_cost_scale=parsed_args.t_cost_scale,
+        t_cost_type=parsed_args.t_cost_type,
     )
 
     # Create merger settings
