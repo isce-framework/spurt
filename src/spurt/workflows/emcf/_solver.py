@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -253,19 +254,24 @@ class EMCFSolver:
         nworkers = self.settings.s_worker_count
         if nworkers < 1:
             nworkers = get_cpu_count() - 1
-        with ProcessPoolExecutor(max_workers=nworkers) as executor:
-            futures = [
+
+        mp_context = mp.get_context("fork")
+        with ProcessPoolExecutor(
+            max_workers=nworkers, mp_context=mp_context
+        ) as executor:
+            futures = {
                 executor.submit(
                     _unwrap_ifg_in_space,
                     grad_space[ii, :],
                     self._solver_space,
                     cost,
                     ii,
-                )
+                ): ii
                 for ii in range(self.nifgs)
-            ]
+            }
             for fut in as_completed(futures):
                 ii, data = fut.result()
+                futures.pop(fut)
                 uw_data[ii, :] = data
         return uw_data
 

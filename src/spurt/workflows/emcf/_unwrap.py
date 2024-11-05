@@ -1,3 +1,4 @@
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -25,8 +26,11 @@ def unwrap_tiles(
     tile_json = gen_settings.tiles_jsonname
     tiledata = spurt.utils.TileSet.from_json(tile_json)
 
-    with ProcessPoolExecutor(max_workers=solv_settings.num_parallel_tiles) as executor:
-        futures = []
+    mp_context = mp.get_context("fork")
+    with ProcessPoolExecutor(
+        max_workers=solv_settings.num_parallel_tiles, mp_context=mp_context
+    ) as executor:
+        futures = {}
 
         # Iterate over tiles
         for tt in range(tiledata.ntiles):
@@ -35,7 +39,7 @@ def unwrap_tiles(
                 logger.info(f"Tile {tt+1} already processed. Skipping...")
                 continue
 
-            futures.append(
+            futures[
                 executor.submit(
                     _unwrap_one_tile,
                     stack,
@@ -45,10 +49,11 @@ def unwrap_tiles(
                     solv_settings,
                     tt,
                 )
-            )
+            ] = tt
 
         for fut in as_completed(futures):
             fut.result()
+            futures.pop(fut)
 
 
 def _unwrap_one_tile(
