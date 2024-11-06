@@ -219,6 +219,7 @@ class ORMCFSolver(MCFSolverInterface):
         cost: np.ndarray,
         revcost: np.ndarray | None = None,
         worker_count: int | None = None,
+        chunksize: int | None = 1,
     ) -> np.ndarray:
         """Parallel version of residues_to_flows.
 
@@ -273,7 +274,9 @@ class ORMCFSolver(MCFSolverInterface):
             # We explicitly use fork here as osx has switched to using spawn
             # and that really slows down the use of multiprocessing
             with get_context("fork").Pool(processes=worker_count) as p:
-                mp_tasks = p.imap_unordered(wrap_solve_mcf, uw_inputs(range(nruns)))
+                mp_tasks = p.imap_unordered(
+                    wrap_solve_mcf, uw_inputs(range(nruns)), chunksize=chunksize
+                )
 
                 # Gather results
                 for res in mp_tasks:
