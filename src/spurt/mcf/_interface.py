@@ -187,6 +187,7 @@ class MCFSolverInterface(Protocol):
         cost: ArrayLike,
         revcost: ArrayLike | None = None,
         worker_count: int | None = None,
+        chunksize: int | None = 1,
     ) -> ArrayLike:
         """Solver should return integer flows corresponding to given residues.
 
