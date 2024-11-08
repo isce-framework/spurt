@@ -1,5 +1,7 @@
 """Build hop-3 planar graphs."""
 
+from __future__ import annotations
+
 import numpy as np
 
 from ._interface import PlanarGraphInterface

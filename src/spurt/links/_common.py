@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix
 
