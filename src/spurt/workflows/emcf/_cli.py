@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 import spurt
 
@@ -100,9 +101,18 @@ def main(args=None):
     parser.add_argument(
         "--singletile", action="store_true", help="Process as a single tile."
     )
+    parser.add_argument(
+        "--log-file",
+        help="Path to save the log file (in addition to printing to stderr).",
+    )
 
     # Parse arguments
     parsed_args = parser.parse_args(args=args)
+    if parsed_args.log_file:
+        file_handler = logging.FileHandler(parsed_args.log_file)
+        _fmt = "%(asctime)s [%(process)d] [%(levelname)s] %(name)-3s: %(message)s"
+        file_handler.setFormatter(logging.Formatter(_fmt))
+        logger.addHandler(file_handler)
 
     # Create the stack that is used
     stack = spurt.io.SLCStackReader.from_phase_linked_directory(
