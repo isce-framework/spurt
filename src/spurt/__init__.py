@@ -3,11 +3,11 @@ from . import graph, io, mcf, utils, workflows
 from ._version import __version__, __version_tuple__
 
 __all__ = [
-    "io",
+    "__version__",
+    "__version_tuple__",
     "graph",
+    "io",
     "mcf",
     "utils",
     "workflows",
-    "__version__",
-    "__version_tuple__",
 ]

@@ -9,8 +9,8 @@ from numpy.typing import ArrayLike
 
 __all__ = [
     "InputInterface",
-    "OutputInterface",
     "InputStackInterface",
+    "OutputInterface",
     "OutputStackInterface",
 ]
 

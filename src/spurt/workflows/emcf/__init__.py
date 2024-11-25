@@ -7,9 +7,9 @@ from ._tiling import get_tiles
 from ._unwrap import unwrap_tiles
 
 __all__ = [
-    "Solver",
     "GeneralSettings",
     "MergerSettings",
+    "Solver",
     "SolverSettings",
     "TilerSettings",
     "compute_phasediff_deciles",
