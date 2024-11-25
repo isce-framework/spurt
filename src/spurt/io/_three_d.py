@@ -8,8 +8,8 @@ from numpy.typing import ArrayLike, DTypeLike
 from ._interface import InputInterface, InputStackInterface
 
 __all__ = [
-    "Reg3DInput",
     "Irreg3DInput",
+    "Reg3DInput",
 ]
 
 

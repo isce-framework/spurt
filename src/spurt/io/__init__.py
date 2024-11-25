@@ -10,11 +10,11 @@ from ._three_d import Irreg3DInput, Reg3DInput
 
 __all__ = [
     "InputInterface",
-    "OutputInterface",
     "InputStackInterface",
+    "Irreg3DInput",
+    "OutputInterface",
     "OutputStackInterface",
     "Reg3DInput",
-    "Irreg3DInput",
 ]
 
 

@@ -4,11 +4,11 @@ from ._interface import GraphInterface, PlanarGraphInterface
 from .utils import graph_laplacian, order_points
 
 __all__ = [
-    "order_points",
-    "graph_laplacian",
-    "GraphInterface",
-    "PlanarGraphInterface",
     "DelaunayGraph",
-    "Reg2DGraph",
+    "GraphInterface",
     "Hop3Graph",
+    "PlanarGraphInterface",
+    "Reg2DGraph",
+    "graph_laplacian",
+    "order_points",
 ]

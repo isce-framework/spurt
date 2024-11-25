@@ -11,8 +11,8 @@ from numpy.typing import ArrayLike
 __all__ = [
     "BBox",
     "TileSet",
-    "create_tiles_regular",
     "create_tiles_density",
+    "create_tiles_regular",
 ]
 
 

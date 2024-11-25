@@ -6,8 +6,8 @@ from scipy.sparse import csc_matrix, csr_matrix
 from ._interface import GraphInterface
 
 __all__ = [
-    "order_points",
     "graph_laplacian",
+    "order_points",
 ]
 
 
