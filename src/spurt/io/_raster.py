@@ -247,7 +247,7 @@ class Raster(AbstractContextManager["Raster"]):
     @property
     def nodata(self) -> float | None:
         """
-        float or None : The raster's nodata value (may be unset).
+        Float or None : The raster's nodata value (may be unset).
 
         The raster's nodata value, or None if no nodata value was set.
         """
