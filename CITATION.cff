@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: "spurt: Spatial and Temporal phase Unwrapping for InSAR time-series"
+type: software
+authors:
+  - family-names: Agram
+    given-names: Piyush S.
+    orcid: https://orcid.org/0000-0003-0711-0264
+  - family-names: Calef
+    given-names: Matthew T.
+    orcid: https://orcid.org/0000-0003-4701-7224
+  - family-names: Olsen
+    given-names: Kelly M.
+    orcid: https://orcid.org/0000-0002-2709-9237
+  - family-names: Staniewicz
+    given-names: Scott J.
+    orcid: https://orcid.org/0000-0002-3055-5731
+  - family-names: Gunter
+    given-names: Geoffrey M.
+    orcid: https://orcid.org/0000-0003-4612-0887
+  - family-names: Fattahi
+    given-names: Heresh
+    orcid: https://orcid.org/0000-0001-6926-4387
+repository-code: "https://github.com/isce-framework/spurt"
+abstract: "spurt (Spatial and Temporal phase Unwrapping for InSAR time-series) is a software package for unwrapping InSAR time-series data."
+keywords:
+  - InSAR
+  - phase unwrapping
+  - time series
+  - remote sensing
+license: "Apache-2.0 OR BSC-3-Clause"
