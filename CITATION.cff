@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using these metadata."
-title: "spurt: Spatial and Temporal phase Unwrapping for InSAR time-series"
+title: "spurt: Spatial and Temporal phase Unwrapping for InSAR Time series"
 type: software
 authors:
   - family-names: Calef
@@ -22,7 +22,7 @@ authors:
     given-names: Heresh
     orcid: https://orcid.org/0000-0001-6926-4387
 repository-code: "https://github.com/isce-framework/spurt"
-abstract: "spurt (Spatial and Temporal phase Unwrapping for InSAR time-series) is a software package for unwrapping InSAR time-series data."
+abstract: "spurt (Spatial and Temporal phase Unwrapping for InSAR Time series) is a software package for unwrapping InSAR time series data."
 keywords:
   - InSAR
   - phase unwrapping
