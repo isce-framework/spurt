@@ -137,6 +137,9 @@ known-first-party = ["spurt"]
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+[tool.ruff.lint.flake8-builtins]
+builtins-allowed-modules = ["io"]
+
 [tool.setuptools_scm]
 write_to = "src/spurt/_version.py"
 local_scheme = "no-local-version"
