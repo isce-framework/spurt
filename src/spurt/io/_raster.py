@@ -13,6 +13,7 @@ from typing import Any, TypeVar
 import numpy as np
 import rasterio
 from numpy.typing import DTypeLike
+from typing_extensions import Self
 
 __all__ = [
     "Raster",
@@ -92,7 +93,7 @@ class Raster(AbstractContextManager["Raster"]):
 
     @classmethod
     def create(
-        cls: type[RasterT],
+        cls,
         fp: str | os.PathLike[str],
         width: int | None = None,
         height: int | None = None,
@@ -104,7 +105,7 @@ class Raster(AbstractContextManager["Raster"]):
         *,
         like: Raster | None = None,
         **kwargs: Any,
-    ) -> RasterT:
+    ) -> Self:
         """
         Create a new single-band raster dataset.
 
