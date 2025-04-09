@@ -50,6 +50,7 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:mermaid2.fence_mermaid_custom
+  - md_in_html # https://squidfunk.github.io/mkdocs-material/reference/images/#image-captions
 
 extra_javascript:
   - javascripts/mathjax.js
