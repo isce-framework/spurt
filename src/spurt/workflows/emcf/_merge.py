@@ -95,14 +95,14 @@ def merge_tiles(
         # Initialize each tile for the right band with bulk offset
         for jj, tile in tiles.items():
             tile.reset_band_index(idx)
-            if bulk_offsets:
+            if bulk_offsets.size != 0:
                 tile.add_correction(np.float32(-2 * np.pi * bulk_offsets[idx, jj]))
             else:
                 # This is to set tile metadata
                 tile.add_correction(np.float32(0.0))
             tile.increment_correction()
 
-        if bulk_offsets:
+        if bulk_offsets.size != 0:
             # Adjust the tiles
             _adjust_tiles(
                 tiles, overlap_map, gen_settings, max_degree, debug_stats=False
