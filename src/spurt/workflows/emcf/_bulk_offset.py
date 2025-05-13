@@ -52,41 +52,48 @@ def get_bulk_offsets(
             olap_counts.append(grp["c1"].shape[0])
             offsets.append(grp["stats"][:, 5])
 
-    # Get number of bands to merge
-    nbands = len(offsets[0])
-    ntiles = tiledata.ntiles
-    counts = np.zeros(ntiles)
+    if offsets:
+        # Get number of bands to merge
+        nbands = len(offsets[0])
+        ntiles = tiledata.ntiles
+        counts = np.zeros(ntiles)
 
-    # Add counts of valid pixels in each tile
-    arr = stack.read_temporal_coherence(np.s_[:, :]) > stack.temp_coh_threshold
-    for ii, tile in enumerate(tiledata.tiles):
-        counts[ii] = np.sum(arr[tile.space])
+        # Add counts of valid pixels in each tile
+        arr = stack.read_temporal_coherence(np.s_[:, :]) > stack.temp_coh_threshold
+        for ii, tile in enumerate(tiledata.tiles):
+            counts[ii] = np.sum(arr[tile.space])
 
-    # If integer solver requested
-    logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")
-    if mrg_settings.bulk_method == "integer":
-        bulk_offset: np.ndarray = np.zeros((nbands, ntiles), dtype=np.int32)
-        obj: np.ndarray = np.zeros(nbands, dtype=np.int32)
+        # If integer solver requested
+        logger.info(f"Solving for bulk offsets with method: {mrg_settings.method}")
+        if mrg_settings.bulk_method == "integer":
+            bulk_offset: np.ndarray = np.zeros((nbands, ntiles), dtype=np.int32)
+            obj: np.ndarray = np.zeros(nbands, dtype=np.int32)
 
-        # Solve band by band
-        for ii in range(nbands):
-            logger.info(f"Computing bulk offsets for band {ii + 1}")
-            off: np.ndarray = np.array([x[ii] for x in offsets])
-            bulk_offset[ii, :], obj[ii] = _solve_int_offsets(
-                overlaps, labels, off, counts
-            )
-    # Use L2 method
-    elif mrg_settings.bulk_method == "L2":
-        # These can be floating point
-        off = np.zeros((len(overlaps), nbands))
-        for ii in range(len(overlaps)):
-            off[ii, :] = offsets[ii]
+            # Solve band by band
+            for ii in range(nbands):
+                logger.info(f"Computing bulk offsets for band {ii + 1}")
+                off: np.ndarray = np.array([x[ii] for x in offsets])
+                bulk_offset[ii, :], obj[ii] = _solve_int_offsets(
+                    overlaps, labels, off, counts
+                )
+        # Use L2 method
+        elif mrg_settings.bulk_method == "L2":
+            # These can be floating point
+            off = np.zeros((len(overlaps), nbands))
+            for ii in range(len(overlaps)):
+                off[ii, :] = offsets[ii]
 
-        bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles, counts)
+            bulk_offset, obj = _solve_l2_min(overlaps, off, ntiles, counts)
+
+        else:
+            errmsg = f"Unsupported bulk offset method {mrg_settings.bulk_method}"
+            raise RuntimeError(errmsg)
 
     else:
-        errmsg = f"Unsupported bulk offset method {mrg_settings.bulk_method}"
-        raise RuntimeError(errmsg)
+        # Write empty file as availability of this file marks completion of
+        # this stage
+        bulk_offset = np.empty(0)
+        obj = np.empty(0)
 
     # Write HDF5 file with bulk offsets
     with h5py.File(str(gen_settings.offsets_filename), "w") as fid:
