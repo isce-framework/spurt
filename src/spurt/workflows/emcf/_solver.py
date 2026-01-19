@@ -54,9 +54,10 @@ class EMCFSolver:
         self._settings = settings
         self._link_model = link_model
 
-        if link_model is not None:
-            errmsg = "Not implemented yet."
-            raise NotImplementedError(errmsg)
+        # Storage for estimated link parameters (velocity, DEM error, etc.)
+        # Populated during unwrap_gradients_in_time when link_model is provided
+        self._link_params: np.ndarray | None = None
+        self._link_coherence: np.ndarray | None = None
 
     @property
     def npoints(self) -> int:
@@ -87,6 +88,73 @@ class EMCFSolver:
     def link_model(self) -> LinkModelInterface | None:
         """Retrieve the link model for the workflow."""
         return self._link_model
+
+    @property
+    def link_params(self) -> np.ndarray | None:
+        """Retrieve estimated model parameters per link.
+
+        Returns array of shape (ndim, nlinks) containing estimated parameters
+        (e.g., velocity, DEM error) for each spatial link. Only available after
+        calling unwrap_cube or unwrap_gradients_in_time with a link_model.
+        """
+        return self._link_params
+
+    @property
+    def link_coherence(self) -> np.ndarray | None:
+        """Retrieve temporal coherence per link.
+
+        Returns array of shape (nlinks,) containing temporal coherence values
+        indicating model fit quality for each spatial link. Only available after
+        calling unwrap_cube or unwrap_gradients_in_time with a link_model.
+        """
+        return self._link_coherence
+
+    def integrate_link_params(self, param_idx: int = 0) -> np.ndarray:
+        """Integrate link parameters to get point values via least-squares.
+
+        Converts per-link parameters (e.g., velocity gradients) to per-point
+        values by solving the least-squares problem: find v such that
+        v[j] - v[i] ~= grad[edge] for all edges. The first point is used
+        as reference (value = 0).
+
+        Parameters
+        ----------
+        param_idx: int
+            Index of the parameter to integrate (default 0, typically velocity).
+
+        Returns
+        -------
+        point_values: np.ndarray
+            1D array of shape (npoints,) with integrated parameter values.
+        """
+        if self._link_params is None:
+            errmsg = "No link parameters available. Run unwrap with link_model first."
+            raise RuntimeError(errmsg)
+
+        from scipy.sparse import csr_matrix
+        from scipy.sparse.linalg import lsqr
+
+        link_gradients = self._link_params[param_idx, :]
+        edges = self._solver_space.edges
+
+        # Build incidence matrix: A[edge, :] has -1 at source, +1 at dest
+        nlinks = len(edges)
+        data = np.ones(2 * nlinks, dtype=np.float64)
+        data[0::2] = -1.0  # -1 for source node
+        data[1::2] = 1.0  # +1 for dest node
+        row_indices = np.repeat(np.arange(nlinks), 2)
+        col_indices = edges.flatten()
+        incidence = csr_matrix(
+            (data, (row_indices, col_indices)), shape=(nlinks, self.npoints)
+        )
+
+        # Solve least-squares: incidence @ point_values = link_gradients
+        # Add constraint: point_values[0] = 0 by dropping first column
+        result = lsqr(incidence[:, 1:], link_gradients)
+        point_values = np.zeros(self.npoints, dtype=np.float32)
+        point_values[1:] = result[0]
+
+        return point_values
 
     def unwrap_cube(self, wrap_data: Irreg3DInput) -> np.ndarray:
         """Unwrap a 3D cube of data.
@@ -160,6 +228,13 @@ class EMCFSolver:
         # Create output array
         grad_space: np.ndarray = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
+        # Initialize storage for estimated parameters if link_model is provided
+        if self._link_model is not None:
+            self._link_params = np.zeros(
+                (self._link_model.ndim, self.nlinks), dtype=np.float32
+            )
+            self._link_coherence = np.zeros(self.nlinks, dtype=np.float32)
+
         logger.info(f"Temporal: Number of interferograms: {self.nifgs}")
         logger.info(f"Temporal: Number of links: {self.nlinks}")
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
@@ -178,9 +253,6 @@ class EMCFSolver:
             # Get indices of points forming links from spatial graph
             inds = self._solver_space.edges[i_start:i_end, :]
 
-            # TODO: Incorporate link_model here when ready
-            # Add self._modeled_phase_diff to replace phase_diff
-
             # Compute spatial gradients for each link
             # If input data is already interferograms
             if input_is_ifg:
@@ -192,6 +264,39 @@ class EMCFSolver:
                 self._ifg_spatial_gradients_from_slc(
                     wrap_data, inds, grad_space, np.s_[i_start:i_end]
                 )
+
+            # If link_model is provided, estimate parameters and flatten gradients
+            if self._link_model is not None:
+                assert self._link_params is not None
+                assert self._link_coherence is not None
+
+                logger.info(f"Temporal: Estimating model for batch {bb + 1}/{nbatches}")
+
+                # Estimate model parameters for this batch of links
+                batch_params, batch_coh = self._link_model.estimate_model_many(
+                    grad_space[:, i_start:i_end],
+                    worker_count=self.settings.t_worker_count,
+                )
+
+                # Store estimated parameters and coherence
+                self._link_params[:, i_start:i_end] = batch_params
+                self._link_coherence[i_start:i_end] = batch_coh
+
+                # Compute model prediction for each interferogram and link
+                model_pred = self._link_model.fwd_model(batch_params)
+
+                # Recompute gradients using model to guide wrapping
+                # phase_diff with model returns gradient wrapped around model_pred
+                if input_is_ifg:
+                    grad_space[:, i_start:i_end] = utils.phase_diff(
+                        wrap_data[:, inds[:, 0]],
+                        wrap_data[:, inds[:, 1]],
+                        model=model_pred,
+                    )
+                else:
+                    self._ifg_spatial_gradients_from_slc_with_model(
+                        wrap_data, inds, grad_space, np.s_[i_start:i_end], model_pred
+                    )
 
             # Compute residues for each cycle in temporal graph
             # Easier to loop over interferograms here
@@ -317,6 +422,49 @@ class EMCFSolver:
 
         # Update gradient in place
         grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1)
+
+    def _ifg_spatial_gradients_from_slc_with_model(
+        self,
+        wrap_data: np.ndarray,
+        edges: np.ndarray,
+        grad_space: np.ndarray,
+        link_slice: slice,
+        model: np.ndarray,
+    ) -> None:
+        """Compute interferometric spatial gradients from slc data with model.
+
+        Parameters
+        ----------
+        wrap_data: np.ndarray
+            Wrapped slc data 2D array for whole graph of shape (nslc, npts)
+        edges: np.ndarray
+            2D array corresponding to edges in spatial graph. These are a
+            subset of all links in the graph.
+        grad_space: np.ndarray
+            Spatial gradient array for the whole graph of shape (nifg, nlinks).
+            This array gets updated in place.
+        link_slice: slice
+            Slice corresponding to edges within the array of all links.
+        model: np.ndarray
+            Model prediction for spatial gradients, shape (nifg, nlinks_in_batch).
+        """
+        # Interferogram edges
+        ifg_inds = self._solver_time.edges
+
+        # Extract SLC data first
+        slc_data0 = wrap_data[:, edges[:, 0]]
+        slc_data1 = wrap_data[:, edges[:, 1]]
+
+        # Make interferograms for extracted points
+        ifg_data0 = utils.phase_diff(
+            slc_data0[ifg_inds[:, 0], :], slc_data0[ifg_inds[:, 1], :]
+        )
+        ifg_data1 = utils.phase_diff(
+            slc_data1[ifg_inds[:, 0], :], slc_data1[ifg_inds[:, 1], :]
+        )
+
+        # Update gradient in place, using model to guide wrapping
+        grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1, model=model)
 
 
 def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
