@@ -132,4 +132,4 @@ The `links/` module provides per-link model estimation via `GridSearchLinearMode
 4. Model prediction: `model_phase = amat @ [velocity, dem_error]`
 5. Use `phase_diff(data0, data1, model=model_phase)` to "flatten" edges before MCF
 
-Integration point: `_solver.py` line 181-182 (TODO comment for incorporating link_model)
+Integration point: `EMCFSolver.unwrap_gradients_in_time()` in `_solver.py` (lines 268-299)

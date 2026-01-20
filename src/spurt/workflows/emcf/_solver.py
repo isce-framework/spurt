@@ -283,7 +283,9 @@ class EMCFSolver:
                 self._link_coherence[i_start:i_end] = batch_coh
 
                 # Compute model prediction for each interferogram and link
+                # fwd_model: (nifgs, ndim) @ (ndim, nlinks) -> (nifgs, nlinks)
                 model_pred = self._link_model.fwd_model(batch_params)
+                assert model_pred.shape == (self.nifgs, links_in_batch)
 
                 # Recompute gradients using model to guide wrapping
                 # phase_diff with model returns gradient wrapped around model_pred

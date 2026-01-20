@@ -1,10 +1,9 @@
 """Test EMCF solver with link model for DEM error and velocity estimation."""
 
 import numpy as np
+import pytest
 
 import spurt
-
-np.random.seed(42)
 
 
 def gen_data_with_velocity():
@@ -71,15 +70,17 @@ def test_emcf_with_link_model():
     assert solver.link_params.shape == (1, solver.nlinks)
     assert solver.link_coherence.shape == (solver.nlinks,)
 
-    # Coherence should be high for clean synthetic data
+    # Coherence should be high for clean synthetic data (no noise added).
+    # 0.95 threshold ensures model fits well; lower values indicate estimation issues.
     assert np.mean(solver.link_coherence) > 0.95
 
     # Test integrate_link_params to get point velocities
     point_vel = solver.integrate_link_params(param_idx=0)
     assert point_vel.shape == (solver.npoints,)
 
-    # Point velocities should correlate well with true velocity field
-    # (Exact values may differ due to grid search resolution and integration)
+    # Point velocities should correlate well with true velocity field.
+    # Exact values may differ due to grid search resolution (0.02) and integration.
+    # 0.95 correlation threshold ensures spatial pattern is recovered correctly.
     true_vel_flat = true_vel.flatten()
     point_vel_ref = point_vel - point_vel[0]
     true_vel_ref = true_vel_flat - true_vel_flat[0]
@@ -162,3 +163,29 @@ def test_link_model_not_provided():
 
     assert solver.link_params is None
     assert solver.link_coherence is None
+
+
+def test_integrate_link_params_without_model():
+    """Test that integrate_link_params raises error when no link model was used."""
+    n_sar, _, phase, _ = gen_data_with_velocity()
+    igram = np.exp(1j * phase)
+
+    g_time = spurt.graph.Hop3Graph(n_sar)
+    s_time = spurt.mcf.ORMCFSolver(g_time)
+
+    g_space = spurt.graph.Reg2DGraph(igram.shape[1:])
+    s_space = spurt.mcf.ORMCFSolver(g_space)
+
+    settings = spurt.workflows.emcf.SolverSettings(
+        s_worker_count=1,
+        t_worker_count=1,
+    )
+    solver = spurt.workflows.emcf.Solver(s_space, s_time, settings)
+
+    w_data = spurt.io.Irreg3DInput(
+        igram.reshape((n_sar, g_space.npoints)), g_space.points
+    )
+    solver.unwrap_cube(w_data)
+
+    with pytest.raises(RuntimeError, match="No link parameters available"):
+        solver.integrate_link_params()
