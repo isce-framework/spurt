@@ -330,6 +330,10 @@ class EMCFSolver:
             # Update the spatial gradients with estimated flows
             grad_space[:, i_start:i_end] += 2 * np.pi * flows.T
 
+            # Restore model contribution removed during flattening
+            if self._link_model is not None:
+                grad_space[:, i_start:i_end] += model_pred
+
         return grad_space
 
     def unwrap_gradients_in_space(self, grad_space: np.ndarray) -> np.ndarray:
