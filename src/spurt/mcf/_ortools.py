@@ -352,7 +352,10 @@ def solve_mcf(
     flows = np.zeros(num_edges, dtype=int)
     for ii in range(num_edges):
         # Sign accounts for orientation of edge in cycles
-        flows[ii] = first_cycle_dir[ii] * (smcf.flow(ii + num_edges) - smcf.flow(ii))
+        # Cast to int to avoid int8 overflow when multiplying
+        flows[ii] = int(first_cycle_dir[ii]) * (
+            smcf.flow(ii + num_edges) - smcf.flow(ii)
+        )
 
     return flows
 

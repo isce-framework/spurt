@@ -6,7 +6,13 @@ import spurt
 from ._bulk_offset import get_bulk_offsets
 from ._merge import merge_tiles
 from ._overlap import compute_phasediff_deciles
-from ._settings import GeneralSettings, MergerSettings, SolverSettings, TilerSettings
+from ._settings import (
+    GeneralSettings,
+    LinkModelSettings,
+    MergerSettings,
+    SolverSettings,
+    TilerSettings,
+)
 from ._tiling import get_tiles
 from ._unwrap import unwrap_tiles
 
@@ -106,6 +112,53 @@ def main(args=None):
         help="Path to save the log file (in addition to printing to stderr).",
     )
 
+    # Link model / velocity estimation arguments
+    parser.add_argument(
+        "--baseline-csv",
+        type=str,
+        default=None,
+        help="Path to CSV with perpendicular baselines. Enables velocity estimation.",
+    )
+    parser.add_argument(
+        "--no-velocity-estimation",
+        action="store_true",
+        help="Disable velocity/DEM error estimation even if baseline CSV is provided.",
+    )
+    parser.add_argument(
+        "--wavelength",
+        type=float,
+        default=0.055465,
+        help="Radar wavelength in meters.",
+    )
+    parser.add_argument(
+        "--slant-range",
+        type=float,
+        default=900000.0,
+        help="Slant range distance in meters.",
+    )
+    parser.add_argument(
+        "--los-incidence-deg",
+        type=float,
+        default=39.0,
+        help="Line-of-sight incidence angle in degrees.",
+    )
+    parser.add_argument(
+        "--velocity-range",
+        type=float,
+        nargs=3,
+        default=[-100.0, 100.0, 5.0],
+        metavar=("MIN", "MAX", "STEP"),
+        help="Velocity search range in mm/yr: min max step.",
+    )
+    parser.add_argument(
+        "--dem-error-range",
+        type=float,
+        nargs=3,
+        default=[-50.0, 50.0, 2.5],
+        metavar=("MIN", "MAX", "STEP"),
+        help="DEM error search range in meters: min max step.",
+    )
+
     # Parse arguments
     parsed_args = parser.parse_args(args=args)
     if parsed_args.log_file:
@@ -148,6 +201,20 @@ def main(args=None):
         num_parallel_ifgs=parsed_args.merge_parallel_ifgs,
     )
 
+    # Create link model settings if baseline CSV is provided and not disabled
+    link_model_settings: LinkModelSettings | None = None
+    if parsed_args.baseline_csv and not parsed_args.no_velocity_estimation:
+        link_model_settings = LinkModelSettings(
+            enabled=True,
+            wavelength_m=parsed_args.wavelength,
+            slant_range_m=parsed_args.slant_range,
+            incidence_deg=parsed_args.los_incidence_deg,
+            velocity_range=tuple(parsed_args.velocity_range),
+            dem_error_range=tuple(parsed_args.dem_error_range),
+            baseline_csv=parsed_args.baseline_csv,
+        )
+        logger.info(f"Link model enabled with baselines: {parsed_args.baseline_csv}")
+
     # Using default Hop3Graph
     logger.info(f"Using Hop3 Graph in time with {len(stack.slc_files)} epochs.")
     g_time = spurt.graph.Hop3Graph(len(stack.slc_files))
@@ -157,7 +224,7 @@ def main(args=None):
     get_tiles(stack, gen_settings, tile_settings)
 
     # Unwrap tiles
-    unwrap_tiles(stack, g_time, gen_settings, slv_settings)
+    unwrap_tiles(stack, g_time, gen_settings, slv_settings, link_model_settings)
 
     # Compute overlap stats
     compute_phasediff_deciles(gen_settings, mrg_settings)

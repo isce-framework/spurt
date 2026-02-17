@@ -120,6 +120,7 @@ ignore = [
   "D105", # Missing docstring in magic method
   "PLR",  # Pylint Refactor
   "PLC0415", #  `import` should be at the top-level of a file
+  "PTH123", # Path.open
 ]
 
 [tool.ruff.lint.per-file-ignores]
