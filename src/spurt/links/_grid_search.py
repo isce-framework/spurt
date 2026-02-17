@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from multiprocessing import get_context
+from typing import Any
 
 import numpy as np
 from scipy import optimize
@@ -20,6 +21,12 @@ class Parameters:
 
     # One slice per variable
     ranges: tuple[slice, ...]
+
+    # If True, clip Nelder-Mead refinement to search bounds.
+    # Useful when the coherence function has aliased peaks (e.g. DEM error
+    # at high baseline sensitivity) that cause the optimizer to jump to
+    # incorrect solutions far from the grid.
+    clip_to_bounds: bool = False
 
     def __post_init__(self):
         if self.matrix.shape[1] != len(self.ranges):
@@ -161,6 +168,25 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
         return params, tcoh
 
 
+def _bounded_fmin(
+    func: Any,
+    x0: np.ndarray,
+    args: tuple,
+    rngs: tuple[slice, ...],
+) -> tuple[np.ndarray, float]:
+    """Nelder-Mead refinement clipped to search bounds."""
+    result = optimize.fmin(func, x0, args=args, full_output=True, disp=False)
+    xopt = np.asarray(result[0])
+    # Clip to search bounds to prevent aliasing
+    for ii, s in enumerate(rngs):
+        lo = s.start
+        hi = s.stop - s.step  # brute stop is exclusive
+        xopt[ii] = np.clip(xopt[ii], lo, hi)
+    # Re-evaluate at clipped point
+    fopt = func(xopt, *args)
+    return xopt, fopt
+
+
 def solve(
     matrix: np.ndarray,
     rngs: tuple[slice, ...],
@@ -168,12 +194,18 @@ def solve(
     wts: np.ndarray | float,
 ) -> tuple[np.ndarray, float]:
     """Actual call to the solver."""
+
+    def finish(func: Any, x0: np.ndarray, **kwargs: Any) -> tuple:
+        # brute passes args=, full_output=, disp= as kwargs
+        args = kwargs.get("args", ())
+        return _bounded_fmin(func, x0, args, rngs)
+
     resbrute = optimize.brute(
         neg_temporal_coherence,
         rngs,
         args=(matrix, wdata, wts),
         full_output=True,
-        finish=optimize.fmin,
+        finish=finish,
     )
     return (resbrute[0], -resbrute[1])
 

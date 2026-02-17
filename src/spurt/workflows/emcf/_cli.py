@@ -5,6 +5,7 @@ import spurt
 
 from ._bulk_offset import get_bulk_offsets
 from ._merge import merge_tiles
+from ._output import write_link_params
 from ._overlap import compute_phasediff_deciles
 from ._settings import (
     GeneralSettings,
@@ -234,5 +235,10 @@ def main(args=None):
 
     # Merge tiles and write output
     merge_tiles(stack, g_time, gen_settings, mrg_settings)
+
+    # Write link model parameters (velocity, DEM error) if available
+    if link_model_settings is not None:
+        like_slc_file = stack.slc_files[stack.dates[-1]]
+        write_link_params(gen_settings, stack.raster_shape, like=like_slc_file)
 
     logger.info("Completed EMCF workflow.")

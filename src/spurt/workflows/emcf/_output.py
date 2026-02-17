@@ -296,3 +296,146 @@ def write_merged_band(
         like=like_raster,
     ) as raster:
         raster[sidx] = model
+
+
+def _write_raster(
+    fname: Path,
+    arr: np.ndarray,
+    like_raster: Any,
+) -> None:
+    """Write a 2D float32 array to a GeoTIFF."""
+    with spurt.io.Raster.create(
+        str(fname),
+        width=arr.shape[1],
+        height=arr.shape[0],
+        dtype=np.float32,
+        nodata=np.nan,
+        driver="GTiff",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        compress="DEFLATE",
+        like=like_raster,
+    ) as raster:
+        raster[np.s_[:, :]] = arr
+
+
+def write_link_params(
+    gen_settings: Any,
+    shape: tuple[int, int],
+    param_names: list[str] | None = None,
+    like: str | os.PathLike[str] | None = None,
+) -> list[Path]:
+    """Integrate per-link model parameters to per-point rasters.
+
+    Reads link_params (spatial gradients) and link_coherence from tile HDF5
+    files, integrates per-link gradients to per-point values via weighted
+    least-squares (WLS), and writes GeoTIFFs for each parameter plus the
+    model coherence.
+
+    Parameters
+    ----------
+    gen_settings : GeneralSettings
+        General settings with tile filenames and output folder.
+    shape : tuple[int, int]
+        Output raster shape (rows, cols).
+    param_names : list[str] | None
+        Names for each parameter dimension.
+        Default: ["velocity_mm_yr", "dem_error_m"].
+    like : str | os.PathLike | None
+        Reference raster for georeferencing.
+
+    Returns
+    -------
+    list[Path]
+        Paths to written GeoTIFFs.
+    """
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.linalg import lsqr
+
+    if param_names is None:
+        param_names = ["velocity_mm_yr", "dem_error_m"]
+
+    tile_json = gen_settings.tiles_jsonname
+    tiledata = spurt.utils.TileSet.from_json(tile_json)
+
+    output_dir = Path(gen_settings.output_folder)
+    like_raster = None if like is None else spurt.io.Raster(like)
+    written: list[Path] = []
+
+    for tt in range(tiledata.ntiles):
+        tile_file = str(gen_settings.tile_filename(tt))
+        with h5py.File(tile_file, "r") as fid:
+            if "link_params" not in fid:
+                logger.info("No link_params in tile files. Skipping link param output.")
+                return written
+
+            link_params = fid["link_params"][...]  # (ndim, nlinks)
+            link_coherence = fid["link_coherence"][...]  # (nlinks,)
+            points = fid["points"][...]  # (npoints, 2)
+            tile_offset = fid["tile"][...]  # (4,) -> [row_start, col_start, ...]
+
+        # Global coordinates
+        coords = points + tile_offset[None, :2]
+
+        # Build Delaunay graph for this tile to get edges
+        g_space = spurt.graph.DelaunayGraph(points)
+        edges = g_space.links
+        nlinks = len(edges)
+        npoints = g_space.npoints
+        ndim = link_params.shape[0]
+
+        # Build weighted incidence matrix for integration.
+        # Use sqrt(coherence) as weights for proper WLS:
+        #   minimize sum_i w_i * (A_i @ x - b_i)^2
+        # Transforming to standard LS: sqrt(W) * A @ x = sqrt(W) * b
+        w = np.sqrt(np.clip(link_coherence, 0, 1)).astype(np.float64)
+        data = np.empty(2 * nlinks, dtype=np.float64)
+        data[0::2] = -w
+        data[1::2] = w
+        row_indices = np.repeat(np.arange(nlinks), 2)
+        col_indices = edges.flatten()
+        w_incidence = csr_matrix(
+            (data, (row_indices, col_indices)), shape=(nlinks, npoints)
+        )
+
+        # Integrate each parameter dimension via WLS
+        for dd in range(ndim):
+            name = param_names[dd] if dd < len(param_names) else f"param_{dd}"
+            fname = output_dir / f"{name}.tif"
+
+            vals = link_params[dd, :]
+
+            rhs = vals * w
+            result = lsqr(w_incidence[:, 1:], rhs)
+            point_values = np.zeros(npoints, dtype=np.float32)
+            point_values[1:] = result[0].astype(np.float32)
+            # Remove median: integration is relative to an arbitrary
+            # reference point, so center the result.
+            point_values -= np.median(point_values)
+
+            arr = np.full(shape, np.nan, dtype=np.float32)
+            arr[coords[:, 0], coords[:, 1]] = point_values
+
+            logger.info(f"Writing {name} to {fname}")
+            _write_raster(fname, arr, like_raster)
+            written.append(fname)
+
+        # Write model coherence (coherence-weighted average per point)
+        coh_fname = output_dir / "link_model_coherence.tif"
+        coh_sum = np.zeros(npoints, dtype=np.float64)
+        coh_cnt = np.zeros(npoints, dtype=np.int32)
+        np.add.at(coh_sum, edges[:, 0], link_coherence)
+        np.add.at(coh_sum, edges[:, 1], link_coherence)
+        np.add.at(coh_cnt, edges[:, 0], 1)
+        np.add.at(coh_cnt, edges[:, 1], 1)
+        coh_avg = np.where(coh_cnt > 0, coh_sum / coh_cnt, 0).astype(np.float32)
+
+        arr = np.full(shape, np.nan, dtype=np.float32)
+        arr[coords[:, 0], coords[:, 1]] = coh_avg
+
+        logger.info(f"Writing link model coherence to {coh_fname}")
+        _write_raster(coh_fname, arr, like_raster)
+        written.append(coh_fname)
+
+    return written

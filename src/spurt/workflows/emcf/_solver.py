@@ -476,7 +476,14 @@ def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
     # Unwrap the interferogram - sequential
     flows = solver_space.residues_to_flows(residues, cost)
 
-    # Flood fill
-    out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
+    # Flood fill - tolerate closure errors by filling with NaN
+    try:
+        out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
+    except ValueError as e:
+        if "closure errors" in str(e):
+            logger.warning(f"Spatial unwrapping {ii + 1}: {e}. Filling with NaN.")
+            out = np.full(solver_space.npoints, np.nan, dtype=np.float32)
+        else:
+            raise
     logger.info(f"Completed spatial unwrapping {ii + 1}")
     return ii, out
