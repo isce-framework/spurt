@@ -150,8 +150,8 @@ class EMCFSolver:
 
         # Solve least-squares: incidence @ point_values = link_gradients
         # Add constraint: point_values[0] = 0 by dropping first column
-        result = lsqr(incidence[:, 1:], link_gradients)
-        point_values = np.zeros(self.npoints, dtype=np.float32)
+        result = lsqr(incidence[:, 1:], link_gradients.astype(np.float64))
+        point_values = np.zeros(self.npoints, dtype=np.float64)
         point_values[1:] = result[0]
 
         return point_values
@@ -194,7 +194,10 @@ class EMCFSolver:
             wrap_data.data, input_is_ifg=input_is_ifg
         )
 
-        # Then unwrap spatial gradients
+        # Then unwrap spatial gradients.
+        # Note: phase_diff(z0, z1, model=m) returns the FULL gradient
+        # (z1-z0) wrapped around the model — not the residual. The model
+        # guides wrapping disambiguation but does not need to be restored.
         return self.unwrap_gradients_in_space(grad_space)
 
     def unwrap_gradients_in_time(
@@ -329,10 +332,6 @@ class EMCFSolver:
 
             # Update the spatial gradients with estimated flows
             grad_space[:, i_start:i_end] += 2 * np.pi * flows.T
-
-            # Restore model contribution removed during flattening
-            if self._link_model is not None:
-                grad_space[:, i_start:i_end] += model_pred
 
         return grad_space
 

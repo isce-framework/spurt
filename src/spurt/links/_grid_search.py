@@ -115,11 +115,11 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
         if weights is None:
             weights = 1.0 / self.nobs
         elif isinstance(weights, np.ndarray):
-            if weights.ndim == 2 and (weights.shape != wrapdata.shape):
-                errmsg = (
-                    f"Weights shape mismatch. Got {weights.shape} vs {wrapdata.shape}"
-                )
-                raise ValueError(errmsg)
+            if weights.ndim == 2:
+                if weights.shape != wrapdata.shape:
+                    errmsg = f"Weights shape mismatch. Got {weights.shape}"
+                    errmsg += f" vs {wrapdata.shape}"
+                    raise ValueError(errmsg)
                 const_weights = False
                 arr_weights: np.ndarray = weights
 

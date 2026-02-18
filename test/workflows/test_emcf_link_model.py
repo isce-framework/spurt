@@ -49,7 +49,7 @@ def test_emcf_with_link_model():
     settings = spurt.workflows.emcf.SolverSettings(
         s_worker_count=1,
         t_worker_count=1,
-        links_per_batch=1000,
+        links_per_batch=10000,
     )
     solver = spurt.workflows.emcf.Solver(s_space, s_time, settings, link_model)
 
