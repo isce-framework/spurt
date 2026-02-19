@@ -459,6 +459,8 @@ def write_link_params(
 
         # Place tile results into global arrays (overlapping regions
         # get overwritten — last tile wins, same as unwrapped phase)
+        assert param_arrays is not None
+        assert coh_array is not None
         r, c = coords[:, 0], coords[:, 1]
         for dd in range(ndim):
             param_arrays[dd][r, c] = point_params[dd]
