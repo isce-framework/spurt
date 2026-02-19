@@ -299,8 +299,12 @@ class EMCFSolver:
                         model=model_pred,
                     )
                 else:
-                    self._ifg_spatial_gradients_from_slc_with_model(
-                        wrap_data, inds, grad_space, np.s_[i_start:i_end], model_pred
+                    self._ifg_spatial_gradients_from_slc(
+                        wrap_data,
+                        inds,
+                        grad_space,
+                        np.s_[i_start:i_end],
+                        model=model_pred,
                     )
 
             # Compute residues for each cycle in temporal graph
@@ -394,6 +398,7 @@ class EMCFSolver:
         edges: np.ndarray,
         grad_space: np.ndarray,
         link_slice: slice,
+        model: float | np.ndarray = 0.0,
     ) -> None:
         """Compute interferometric spatial gradients from slc data.
 
@@ -409,49 +414,10 @@ class EMCFSolver:
             This array gets updated in place.
         link_slice: slice
             Slice corresponding to edges within the array of all links.
-        """
-        # Interferogram edges
-        ifg_inds = self._solver_time.edges
-
-        # Extract SLC data first
-        slc_data0 = wrap_data[:, edges[:, 0]]
-        slc_data1 = wrap_data[:, edges[:, 1]]
-
-        # Make interferograms for extracted points
-        ifg_data0 = utils.phase_diff(
-            slc_data0[ifg_inds[:, 0], :], slc_data0[ifg_inds[:, 1], :]
-        )
-        ifg_data1 = utils.phase_diff(
-            slc_data1[ifg_inds[:, 0], :], slc_data1[ifg_inds[:, 1], :]
-        )
-
-        # Update gradient in place
-        grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1)
-
-    def _ifg_spatial_gradients_from_slc_with_model(
-        self,
-        wrap_data: np.ndarray,
-        edges: np.ndarray,
-        grad_space: np.ndarray,
-        link_slice: slice,
-        model: np.ndarray,
-    ) -> None:
-        """Compute interferometric spatial gradients from slc data with model.
-
-        Parameters
-        ----------
-        wrap_data: np.ndarray
-            Wrapped slc data 2D array for whole graph of shape (nslc, npts)
-        edges: np.ndarray
-            2D array corresponding to edges in spatial graph. These are a
-            subset of all links in the graph.
-        grad_space: np.ndarray
-            Spatial gradient array for the whole graph of shape (nifg, nlinks).
-            This array gets updated in place.
-        link_slice: slice
-            Slice corresponding to edges within the array of all links.
-        model: np.ndarray
-            Model prediction for spatial gradients, shape (nifg, nlinks_in_batch).
+        model: float | np.ndarray
+            Model prediction for spatial gradients. When provided, wraps
+            the gradient around the model to guide disambiguation.
+            Shape (nifg, nlinks_in_batch) or scalar 0.0 (default).
         """
         # Interferogram edges
         ifg_inds = self._solver_time.edges

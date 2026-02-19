@@ -163,18 +163,36 @@ def _interpolate_baselines(
 
     If stack dates match baseline dates exactly, returns baselines directly.
     Otherwise, linearly interpolates baselines for missing dates.
-    """
-    # Convert to float for interpolation (days since epoch)
-    stack_days = stack_dates.astype("datetime64[D]").astype(np.float64)
-    baseline_days = baseline_data.dates.astype("datetime64[D]").astype(np.float64)
 
+    Parameters
+    ----------
+    stack_dates : np.ndarray
+        SLC dates from the stack as datetime64[D].
+    baseline_data : spurt.io.BaselineData
+        Baseline data loaded from CSV.
+
+    Returns
+    -------
+    np.ndarray
+        Perpendicular baselines matched to stack dates.
+    """
     # Check for exact match
     if len(stack_dates) == len(baseline_data.dates) and np.all(
         stack_dates == baseline_data.dates
     ):
         return baseline_data.bperp_m
 
-    # Interpolate
+    # Perpendicular baselines depend on orbital geometry, not time, so
+    # linear interpolation is only a rough approximation.
+    n_missing = np.sum(~np.isin(stack_dates, baseline_data.dates))
+    logger.warning(
+        f"Baseline dates do not match stack dates ({n_missing} dates missing"
+        f" from baseline CSV). Linearly interpolating baselines; this is only"
+        f" approximate since Bperp depends on orbital geometry, not time."
+    )
+
+    stack_days = stack_dates.astype("datetime64[D]").astype(np.float64)
+    baseline_days = baseline_data.dates.astype("datetime64[D]").astype(np.float64)
     return np.interp(stack_days, baseline_days, baseline_data.bperp_m)
 
 

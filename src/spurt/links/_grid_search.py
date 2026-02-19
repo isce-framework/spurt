@@ -22,12 +22,6 @@ class Parameters:
     # One slice per variable
     ranges: tuple[slice, ...]
 
-    # If True, clip Nelder-Mead refinement to search bounds.
-    # Useful when the coherence function has aliased peaks (e.g. DEM error
-    # at high baseline sensitivity) that cause the optimizer to jump to
-    # incorrect solutions far from the grid.
-    clip_to_bounds: bool = False
-
     def __post_init__(self):
         if self.matrix.shape[1] != len(self.ranges):
             errmsg = (
