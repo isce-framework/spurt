@@ -54,10 +54,10 @@ class EMCFSolver:
         self._settings = settings
         self._link_model = link_model
 
-        # Storage for estimated link parameters (velocity, DEM error, etc.)
+        # Estimated link parameters (velocity, DEM error, etc.)
         # Populated during unwrap_gradients_in_time when link_model is provided
-        self._link_params: np.ndarray | None = None
-        self._link_coherence: np.ndarray | None = None
+        self.link_params: np.ndarray | None = None
+        self.link_coherence: np.ndarray | None = None
 
     @property
     def npoints(self) -> int:
@@ -89,26 +89,6 @@ class EMCFSolver:
         """Retrieve the link model for the workflow."""
         return self._link_model
 
-    @property
-    def link_params(self) -> np.ndarray | None:
-        """Retrieve estimated model parameters per link.
-
-        Returns array of shape (ndim, nlinks) containing estimated parameters
-        (e.g., velocity, DEM error) for each spatial link. Only available after
-        calling unwrap_cube or unwrap_gradients_in_time with a link_model.
-        """
-        return self._link_params
-
-    @property
-    def link_coherence(self) -> np.ndarray | None:
-        """Retrieve temporal coherence per link.
-
-        Returns array of shape (nlinks,) containing temporal coherence values
-        indicating model fit quality for each spatial link. Only available after
-        calling unwrap_cube or unwrap_gradients_in_time with a link_model.
-        """
-        return self._link_coherence
-
     def integrate_link_params(self, param_idx: int = 0) -> np.ndarray:
         """Integrate link parameters to get point values via least-squares.
 
@@ -127,14 +107,14 @@ class EMCFSolver:
         point_values: np.ndarray
             1D array of shape (npoints,) with integrated parameter values.
         """
-        if self._link_params is None:
+        if self.link_params is None:
             errmsg = "No link parameters available. Run unwrap with link_model first."
             raise RuntimeError(errmsg)
 
         from scipy.sparse import csr_matrix
         from scipy.sparse.linalg import lsqr
 
-        link_gradients = self._link_params[param_idx, :]
+        link_gradients = self.link_params[param_idx, :]
         edges = self._solver_space.edges
 
         # Build incidence matrix: A[edge, :] has -1 at source, +1 at dest
@@ -233,10 +213,10 @@ class EMCFSolver:
 
         # Initialize storage for estimated parameters if link_model is provided
         if self._link_model is not None:
-            self._link_params = np.zeros(
+            self.link_params = np.zeros(
                 (self._link_model.ndim, self.nlinks), dtype=np.float32
             )
-            self._link_coherence = np.zeros(self.nlinks, dtype=np.float32)
+            self.link_coherence = np.zeros(self.nlinks, dtype=np.float32)
 
         logger.info(f"Temporal: Number of interferograms: {self.nifgs}")
         logger.info(f"Temporal: Number of links: {self.nlinks}")
@@ -270,8 +250,8 @@ class EMCFSolver:
 
             # If link_model is provided, estimate parameters and flatten gradients
             if self._link_model is not None:
-                assert self._link_params is not None
-                assert self._link_coherence is not None
+                assert self.link_params is not None
+                assert self.link_coherence is not None
 
                 logger.info(f"Temporal: Estimating model for batch {bb + 1}/{nbatches}")
 
@@ -282,8 +262,8 @@ class EMCFSolver:
                 )
 
                 # Store estimated parameters and coherence
-                self._link_params[:, i_start:i_end] = batch_params
-                self._link_coherence[i_start:i_end] = batch_coh
+                self.link_params[:, i_start:i_end] = batch_params
+                self.link_coherence[i_start:i_end] = batch_coh
 
                 # Compute model prediction for each interferogram and link
                 # fwd_model: (nifgs, ndim) @ (ndim, nlinks) -> (nifgs, nlinks)

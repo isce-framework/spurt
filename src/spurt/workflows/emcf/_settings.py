@@ -195,8 +195,8 @@ class LinkModelSettings:
         Radar wavelength in meters. Default 0.055465 (Sentinel-1 C-band).
     slant_range_m : float
         Slant range distance in meters. Default 900000.0.
-    incidence_deg : float
-        Incidence angle in degrees. Default 39.0.
+    look_angle_deg : float
+        Look angle in degrees. Default 39.0.
     velocity_range : tuple[float, float, float]
         Grid search range for velocity in mm/yr as (min, max, step).
         Default (-100.0, 100.0, 5.0).
@@ -210,27 +210,17 @@ class LinkModelSettings:
     enabled: bool = True
     wavelength_m: float = 0.055465  # Sentinel-1 C-band
     slant_range_m: float = 900000.0
-    incidence_deg: float = 39.0
+    look_angle_deg: float = 39.0
     velocity_range: tuple[float, float, float] = (-100.0, 100.0, 5.0)
     dem_error_range: tuple[float, float, float] = (-50.0, 50.0, 2.5)
     baseline_csv: str | None = None
 
     @property
-    def incidence_rad(self) -> float:
-        """Return incidence angle in radians."""
+    def look_angle_rad(self) -> float:
+        """Return look angle in radians."""
         import math
 
-        return math.radians(self.incidence_deg)
-
-    @property
-    def velocity_slice(self) -> slice:
-        """Return velocity range as slice for grid search."""
-        return slice(*self.velocity_range)
-
-    @property
-    def dem_error_slice(self) -> slice:
-        """Return DEM error range as slice for grid search."""
-        return slice(*self.dem_error_range)
+        return math.radians(self.look_angle_deg)
 
     def __post_init__(self):
         if self.enabled and self.baseline_csv is None:
@@ -242,8 +232,8 @@ class LinkModelSettings:
         if self.slant_range_m <= 0:
             errmsg = f"slant_range_m must be > 0, got {self.slant_range_m}"
             raise ValueError(errmsg)
-        if not (0 < self.incidence_deg < 90):
-            errmsg = f"incidence_deg must be in (0, 90), got {self.incidence_deg}"
+        if not (0 < self.look_angle_deg < 90):
+            errmsg = f"look_angle_deg must be in (0, 90), got {self.look_angle_deg}"
             raise ValueError(errmsg)
 
 

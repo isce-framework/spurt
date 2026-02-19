@@ -21,7 +21,7 @@ def test_design_matrix_shape():
         bperp_m=bperp_m,
         wavelength_m=0.055465,
         slant_range_m=900000.0,
-        incidence_rad=np.radians(39.0),
+        look_angle_rad=np.radians(39.0),
     )
 
     assert amat.shape == (5, 2)
@@ -45,7 +45,7 @@ def test_velocity_sensitivity_calculation():
         bperp_m=bperp_m,
         wavelength_m=wavelength_m,
         slant_range_m=900000.0,
-        incidence_rad=np.radians(39.0),
+        look_angle_rad=np.radians(39.0),
     )
 
     # Expected: 4*pi/0.055465 * 366/365.25 * 0.001 = 0.2273 rad/(mm/yr)
@@ -57,7 +57,7 @@ def test_dem_error_sensitivity_calculation():
     """Test DEM error sensitivity column calculation.
 
     For DEM error in meters, the phase sensitivity is:
-        dphi/dh = 4*pi/wavelength * bperp / (slant_range * sin(inc))
+        dphi/dh = 4*pi/wavelength * bperp / (slant_range * cos(look))
     """
     ifg_edges = np.array([[0, 1]])
     dates = np.array(["2020-01-01", "2020-01-01"], dtype="datetime64[D]")  # Same date
@@ -65,7 +65,7 @@ def test_dem_error_sensitivity_calculation():
 
     wavelength_m = 0.055465
     slant_range_m = 900000.0
-    incidence_rad = np.radians(39.0)
+    look_angle_rad = np.radians(39.0)
 
     amat = build_design_matrix(
         ifg_edges=ifg_edges,
@@ -73,15 +73,15 @@ def test_dem_error_sensitivity_calculation():
         bperp_m=bperp_m,
         wavelength_m=wavelength_m,
         slant_range_m=slant_range_m,
-        incidence_rad=incidence_rad,
+        look_angle_rad=look_angle_rad,
     )
 
     # Velocity sensitivity should be 0 (same date)
     np.testing.assert_almost_equal(amat[0, 0], 0.0, decimal=10)
 
-    # Expected DEM error sensitivity: 4*pi/wavelength * 100 / (900000 * sin(39deg))
+    # Expected DEM error sensitivity: 4*pi/wavelength * 100 / (900000 * cos(39deg))
     expected_dem_sens = (
-        4.0 * np.pi / wavelength_m * 100.0 / (slant_range_m * np.sin(incidence_rad))
+        4.0 * np.pi / wavelength_m * 100.0 / (slant_range_m * np.cos(look_angle_rad))
     )
     np.testing.assert_almost_equal(amat[0, 1], expected_dem_sens, decimal=10)
 
@@ -98,7 +98,7 @@ def test_negative_baseline_difference():
         bperp_m=bperp_m,
         wavelength_m=0.055465,
         slant_range_m=900000.0,
-        incidence_rad=np.radians(39.0),
+        look_angle_rad=np.radians(39.0),
     )
 
     # DEM error sensitivity should be negative
@@ -133,7 +133,7 @@ def test_multiple_ifgs():
         bperp_m=bperp_m,
         wavelength_m=0.055465,
         slant_range_m=900000.0,
-        incidence_rad=np.radians(39.0),
+        look_angle_rad=np.radians(39.0),
     )
 
     assert amat.shape == (9, 2)

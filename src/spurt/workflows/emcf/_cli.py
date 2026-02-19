@@ -138,10 +138,10 @@ def main(args=None):
         help="Slant range distance in meters.",
     )
     parser.add_argument(
-        "--los-incidence-deg",
+        "--look-angle-deg",
         type=float,
         default=39.0,
-        help="Line-of-sight incidence angle in degrees.",
+        help="Look angle in degrees.",
     )
     parser.add_argument(
         "--velocity-range",
@@ -209,7 +209,7 @@ def main(args=None):
             enabled=True,
             wavelength_m=parsed_args.wavelength,
             slant_range_m=parsed_args.slant_range,
-            incidence_deg=parsed_args.los_incidence_deg,
+            look_angle_deg=parsed_args.look_angle_deg,
             velocity_range=tuple(parsed_args.velocity_range),
             dem_error_range=tuple(parsed_args.dem_error_range),
             baseline_csv=parsed_args.baseline_csv,

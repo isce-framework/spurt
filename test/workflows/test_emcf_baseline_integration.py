@@ -30,36 +30,16 @@ def test_link_model_settings_validation():
     assert settings.enabled is False
 
 
-def test_link_model_settings_slices():
-    """Test that LinkModelSettings produces correct slices for grid search."""
+def test_link_model_settings_look_angle_conversion():
+    """Test look angle conversion from degrees to radians."""
     settings = LinkModelSettings(
         enabled=True,
         baseline_csv="/path/to/file.csv",
-        velocity_range=(-50.0, 50.0, 2.5),
-        dem_error_range=(-25.0, 25.0, 1.0),
-    )
-
-    vel_slice = settings.velocity_slice
-    assert vel_slice.start == -50.0
-    assert vel_slice.stop == 50.0
-    assert vel_slice.step == 2.5
-
-    dem_slice = settings.dem_error_slice
-    assert dem_slice.start == -25.0
-    assert dem_slice.stop == 25.0
-    assert dem_slice.step == 1.0
-
-
-def test_link_model_settings_incidence_conversion():
-    """Test incidence angle conversion from degrees to radians."""
-    settings = LinkModelSettings(
-        enabled=True,
-        baseline_csv="/path/to/file.csv",
-        incidence_deg=45.0,
+        look_angle_deg=45.0,
     )
 
     expected_rad = np.radians(45.0)
-    np.testing.assert_almost_equal(settings.incidence_rad, expected_rad)
+    np.testing.assert_almost_equal(settings.look_angle_rad, expected_rad)
 
 
 def test_baseline_and_design_matrix_integration():
@@ -92,7 +72,7 @@ def test_baseline_and_design_matrix_integration():
             bperp_m=baseline_data.bperp_m,
             wavelength_m=0.055465,
             slant_range_m=900000.0,
-            incidence_rad=np.radians(39.0),
+            look_angle_rad=np.radians(39.0),
         )
 
         # Should have correct shape
@@ -172,7 +152,7 @@ def test_emcf_with_baseline_csv_full_workflow():
             bperp_m=baseline_data.bperp_m,
             wavelength_m=wavelength_m,
             slant_range_m=900000.0,
-            incidence_rad=np.radians(39.0),
+            look_angle_rad=np.radians(39.0),
         )
 
         # Create link model
@@ -226,7 +206,7 @@ def test_cli_argument_parsing():
         "0.031",
         "--slant-range",
         "800000",
-        "--los-incidence-deg",
+        "--look-angle-deg",
         "35.0",
         "--velocity-range",
         "-80",
@@ -244,7 +224,7 @@ def test_cli_argument_parsing():
     parser.add_argument("--no-velocity-estimation", action="store_true")
     parser.add_argument("--wavelength", type=float, default=0.055465)
     parser.add_argument("--slant-range", type=float, default=900000.0)
-    parser.add_argument("--los-incidence-deg", type=float, default=39.0)
+    parser.add_argument("--look-angle-deg", type=float, default=39.0)
     parser.add_argument(
         "--velocity-range", type=float, nargs=3, default=[-100.0, 100.0, 5.0]
     )
@@ -257,6 +237,6 @@ def test_cli_argument_parsing():
     assert parsed.baseline_csv == "/path/to/baselines.csv"
     assert parsed.wavelength == 0.031
     assert parsed.slant_range == 800000
-    assert parsed.los_incidence_deg == 35.0
+    assert parsed.look_angle_deg == 35.0
     assert parsed.velocity_range == [-80.0, 80.0, 4.0]
     assert parsed.dem_error_range == [-40.0, 40.0, 2.0]

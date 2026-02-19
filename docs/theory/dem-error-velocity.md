@@ -9,7 +9,7 @@ Spurt estimates per-pixel velocity and DEM error as part of 3D phase unwrapping.
 An interferometric phase observation between two SAR acquisitions can be decomposed as:
 
 $$
-\phi = \underbrace{\frac{4\pi}{\lambda} \, v \, \Delta t}_{\text{displacement}} \;+\; \underbrace{\frac{4\pi}{\lambda} \, \frac{B_\perp}{R \sin\theta} \, \varepsilon_{\text{DEM}}}_{\text{DEM error}} \;+\; \phi_{\text{atmo}} + \phi_{\text{noise}}
+\phi = \underbrace{\frac{4\pi}{\lambda} \, v \, \Delta t}_{\text{displacement}} \;+\; \underbrace{\frac{4\pi}{\lambda} \, \frac{B_\perp}{R \cos\theta} \, \varepsilon_{\text{DEM}}}_{\text{DEM error}} \;+\; \phi_{\text{atmo}} + \phi_{\text{noise}}
 $$
 
 where:
@@ -21,7 +21,7 @@ where:
 | $\Delta t$ | Temporal baseline | days |
 | $B_\perp$ | Perpendicular baseline (secondary minus reference) | m |
 | $R$ | Slant range distance | m |
-| $\theta$ | Incidence angle | rad |
+| $\theta$ | Look angle | rad |
 | $\varepsilon_{\text{DEM}}$ | DEM error | m |
 
 We collect the two deterministic terms into a **design matrix** $\mathbf{A}$ of shape $(N_{\text{ifg}}, 2)$ and a parameter vector $\mathbf{x} = [v, \, \varepsilon_{\text{DEM}}]^T$:
@@ -35,7 +35,7 @@ Each row of $\mathbf{A}$ corresponds to one interferogram:
 $$
 A_{k,0} = \frac{4\pi}{\lambda} \cdot \frac{\Delta t_k}{365.25 \cdot 1000}
 \qquad
-A_{k,1} = \frac{4\pi}{\lambda} \cdot \frac{\Delta B_{\perp,k}}{R \sin\theta}
+A_{k,1} = \frac{4\pi}{\lambda} \cdot \frac{\Delta B_{\perp,k}}{R \cos\theta}
 $$
 
 Column 0 gives **radians per mm/yr of velocity**; column 1 gives **radians per meter of DEM error** \[cite:Ferretti2001PermanentScatterers\].
@@ -67,14 +67,14 @@ amat = build_design_matrix(
     bperp_m=bperp_m,         # perpendicular baseline per SLC (meters)
     wavelength_m=0.031,      # Capella X-band: 3.1 cm
     slant_range_m=550_000,
-    incidence_rad=0.61,
+    look_angle_rad=0.61,
 )
 # amat.shape == (nifgs, 2)
 # amat[:, 0] -> rad per mm/yr   (velocity sensitivity)
 # amat[:, 1] -> rad per meter   (DEM error sensitivity)
 ```
 
-The function iterates over interferogram pairs, computing temporal baseline $\Delta t$ and perpendicular baseline difference $\Delta B_\perp$ for each. The common factor $4\pi/\lambda$ is applied once, and the geometric DEM scaling $1/(R \sin\theta)$ is computed once for the scene.
+The function iterates over interferogram pairs, computing temporal baseline $\Delta t$ and perpendicular baseline difference $\Delta B_\perp$ for each. The common factor $4\pi/\lambda$ is applied once, and the geometric DEM scaling $1/(R \cos\theta)$ is computed once for the scene.
 
 ---
 

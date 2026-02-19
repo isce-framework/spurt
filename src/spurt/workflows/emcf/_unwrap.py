@@ -145,13 +145,13 @@ def _build_link_model(
         bperp_m=_interpolate_baselines(stack_dates, baseline_data),
         wavelength_m=settings.wavelength_m,
         slant_range_m=settings.slant_range_m,
-        incidence_rad=settings.incidence_rad,
+        look_angle_rad=settings.look_angle_rad,
     )
 
     # Create grid search model
     return GridSearchLinearModel(
         matrix=amat,
-        ranges=(settings.velocity_slice, settings.dem_error_slice),
+        ranges=(slice(*settings.velocity_range), slice(*settings.dem_error_range)),
     )
 
 

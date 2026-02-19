@@ -15,7 +15,7 @@ def build_design_matrix(
     bperp_m: np.ndarray,
     wavelength_m: float,
     slant_range_m: float,
-    incidence_rad: float,
+    look_angle_rad: float,
 ) -> np.ndarray:
     """Build design matrix for velocity and DEM error estimation.
 
@@ -41,8 +41,8 @@ def build_design_matrix(
         Radar wavelength in meters (e.g., 0.055465 for Sentinel-1 C-band).
     slant_range_m : float
         Slant range distance in meters (e.g., 900000 for Sentinel-1).
-    incidence_rad : float
-        Incidence angle in radians (e.g., 0.68 rad = 39 deg for Sentinel-1).
+    look_angle_rad : float
+        Look angle in radians (e.g., 0.68 rad = 39 deg for Sentinel-1).
 
     Returns
     -------
@@ -56,7 +56,7 @@ def build_design_matrix(
     The phase model is:
 
         phi = (4 * pi / wavelength) * velocity * delta_t / 1000 / 365.25
-            + (4 * pi / wavelength) * (bperp / (slant_range * sin(inc))) * dem_error
+            + (4 * pi / wavelength) * (bperp / (slant_range * cos(look))) * dem_error
 
     where velocity is in mm/yr and dem_error is in meters.
 
@@ -72,8 +72,8 @@ def build_design_matrix(
     # Common factor: 4 * pi / wavelength
     phase_factor = 4.0 * np.pi / wavelength_m
 
-    # DEM error factor: bperp / (slant_range * sin(incidence))
-    dem_scale = 1.0 / (slant_range_m * np.sin(incidence_rad))
+    # DEM error factor: bperp / (slant_range * cos(look_angle))
+    dem_scale = 1.0 / (slant_range_m * np.cos(look_angle_rad))
 
     for ii, (ref_idx, sec_idx) in enumerate(ifg_edges):
         # Temporal baseline in days
