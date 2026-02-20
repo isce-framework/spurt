@@ -56,7 +56,7 @@ def build_design_matrix(
     The phase model is:
 
         phi = (4 * pi / wavelength) * velocity * delta_t / 1000 / 365.25
-            + (4 * pi / wavelength) * (bperp / (slant_range * cos(look))) * dem_error
+            + (4 * pi / wavelength) * (bperp / (slant_range * sin(look))) * dem_error
 
     where velocity is in mm/yr and dem_error is in meters.
 
@@ -72,8 +72,8 @@ def build_design_matrix(
     # Common factor: 4 * pi / wavelength
     phase_factor = 4.0 * np.pi / wavelength_m
 
-    # DEM error factor: bperp / (slant_range * cos(look_angle))
-    dem_scale = 1.0 / (slant_range_m * np.cos(look_angle_rad))
+    # DEM error factor: bperp / (slant_range * sin(incidence_angle))
+    dem_scale = 1.0 / (slant_range_m * np.sin(look_angle_rad))
 
     for ii, (ref_idx, sec_idx) in enumerate(ifg_edges):
         # Temporal baseline in days

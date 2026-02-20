@@ -9,7 +9,7 @@ Spurt estimates per-pixel velocity and DEM error as part of 3D phase unwrapping.
 An interferometric phase observation between two SAR acquisitions can be decomposed as:
 
 $$
-\phi = \underbrace{\frac{4\pi}{\lambda} \, v \, \Delta t}_{\text{displacement}} \;+\; \underbrace{\frac{4\pi}{\lambda} \, \frac{B_\perp}{R \cos\theta} \, \varepsilon_{\text{DEM}}}_{\text{DEM error}} \;+\; \phi_{\text{atmo}} + \phi_{\text{noise}}
+\phi = \underbrace{\frac{4\pi}{\lambda} \, v \, \Delta t}_{\text{displacement}} \;+\; \underbrace{\frac{4\pi}{\lambda} \, \frac{B_\perp}{R \sin\theta} \, \varepsilon_{\text{DEM}}}_{\text{DEM error}} \;+\; \phi_{\text{atmo}} + \phi_{\text{noise}}
 $$
 
 where:
@@ -35,7 +35,7 @@ Each row of $\mathbf{A}$ corresponds to one interferogram:
 $$
 A_{k,0} = \frac{4\pi}{\lambda} \cdot \frac{\Delta t_k}{365.25 \cdot 1000}
 \qquad
-A_{k,1} = \frac{4\pi}{\lambda} \cdot \frac{\Delta B_{\perp,k}}{R \cos\theta}
+A_{k,1} = \frac{4\pi}{\lambda} \cdot \frac{\Delta B_{\perp,k}}{R \sin\theta}
 $$
 
 Column 0 gives **radians per mm/yr of velocity**; column 1 gives **radians per meter of DEM error** \[cite:Ferretti2001PermanentScatterers\].
@@ -74,7 +74,7 @@ amat = build_design_matrix(
 # amat[:, 1] -> rad per meter   (DEM error sensitivity)
 ```
 
-The function iterates over interferogram pairs, computing temporal baseline $\Delta t$ and perpendicular baseline difference $\Delta B_\perp$ for each. The common factor $4\pi/\lambda$ is applied once, and the geometric DEM scaling $1/(R \cos\theta)$ is computed once for the scene.
+The function iterates over interferogram pairs, computing temporal baseline $\Delta t$ and perpendicular baseline difference $\Delta B_\perp$ for each. The common factor $4\pi/\lambda$ is applied once, and the geometric DEM scaling $1/(R \sin\theta)$ is computed once for the scene.
 
 ---
 
