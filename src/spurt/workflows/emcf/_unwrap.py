@@ -95,7 +95,7 @@ def _unwrap_one_tile(
     solver = EMCFSolver(s_space, s_time, solv_settings, link_model)
     wrap_data = stack.read_tile(tile.space)
     assert wrap_data.shape[1] == g_space.npoints
-    logger.info(f"Time steps: {solver.nifgs}")
+    logger.info(f"Interferograms: {solver.nifgs}")
     logger.info(f"Number of points: {solver.npoints}")
 
     uw_data = solver.unwrap_cube(wrap_data)
