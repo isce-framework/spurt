@@ -153,13 +153,15 @@ def _parse_date(date_str: str) -> str:
 
 
 def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
-    """Load per-IFG format CSV and convert to per-SLC via least-squares.
+    """Load per-IFG format CSV and convert to per-SLC baselines.
 
     The interferometric baseline relationship is:
         bperp_ifg[i,j] = bperp[j] - bperp[i]
 
-    We solve for per-SLC baselines using least-squares with the
-    first SLC as reference (bperp=0).
+    If all interferograms share a single reference, the bperp values are
+    already per-SLC baselines and are used directly. Otherwise, per-SLC
+    baselines are recovered via least-squares with the first SLC as
+    reference (bperp=0).
 
     If 'reference_time_utc' and 'secondary_time_utc' columns are present,
     dates are taken from those (more reliable). Otherwise dates are extracted
@@ -170,7 +172,9 @@ def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
     bperp_col = columns.index("bperp_m")
 
     # Prefer the explicit UTC time columns when available
-    has_time_cols = "reference_time_utc" in columns and "secondary_time_utc" in columns
+    has_time_cols = (
+        "reference_time_utc" in columns and "secondary_time_utc" in columns
+    )
     if has_time_cols:
         ref_time_col = columns.index("reference_time_utc")
         sec_time_col = columns.index("secondary_time_utc")
@@ -200,6 +204,16 @@ def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
     date_to_idx = {d: i for i, d in enumerate(all_dates)}
     n_slc = len(all_dates)
     n_ifg = len(bperp_ifg)
+
+    # Single-reference shortcut: if all IFGs share the same reference,
+    # bperp values are already per-SLC baselines relative to that reference.
+    unique_refs = set(ref_dates)
+    if len(unique_refs) == 1:
+        bperp_m = np.zeros(n_slc, dtype=np.float64)
+        for sec, bp in zip(sec_dates, bperp_ifg):
+            bperp_m[date_to_idx[sec]] = bp
+        dates = np.array(all_dates, dtype="datetime64[D]")
+        return BaselineData(dates=dates, bperp_m=bperp_m)
 
     # Build design matrix: A[ifg, :] has -1 at reference, +1 at secondary
     # bperp_ifg = A @ bperp_slc
