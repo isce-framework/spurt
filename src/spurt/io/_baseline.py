@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,9 +69,10 @@ def load_baseline_csv(filepath: str | Path) -> BaselineData:
     filepath = Path(filepath)
 
     with open(filepath) as f:
-        header = f.readline().strip().lower()
+        reader = csv.reader(f)
+        header = next(reader)
 
-    columns = [c.strip() for c in header.split(",")]
+    columns = [c.strip().lower() for c in header]
 
     if "date" in columns and "bperp_m" in columns:
         return _load_per_slc_csv(filepath, columns)
@@ -92,13 +95,13 @@ def _load_per_slc_csv(filepath: Path, columns: list[str]) -> BaselineData:
     bperp_list = []
 
     with open(filepath) as f:
-        next(f)  # skip header
-        for line in f:
-            parts = [p.strip() for p in line.strip().split(",")]
-            if not parts or not parts[0]:
+        reader = csv.reader(f)
+        next(reader)  # skip header
+        for row in reader:
+            if not row or not row[0].strip():
                 continue
-            dates_list.append(_parse_date(parts[date_col]))
-            bperp_list.append(float(parts[bperp_col]))
+            dates_list.append(_parse_date(row[date_col].strip()))
+            bperp_list.append(float(row[bperp_col].strip()))
 
     dates = np.array(dates_list, dtype="datetime64[D]")
     bperp_m = np.array(bperp_list, dtype=np.float64)
@@ -111,16 +114,42 @@ def _load_per_slc_csv(filepath: Path, columns: list[str]) -> BaselineData:
     return BaselineData(dates=dates, bperp_m=bperp_m)
 
 
+# Regex to pull the first YYYYMMDD from a string (works on filenames, paths, etc.)
+_DATE8_RE = re.compile(r"(\d{8})")
+
+
 def _parse_date(date_str: str) -> str:
     """Parse date string to ISO format (YYYY-MM-DD).
 
-    Supports formats: YYYYMMDD, YYYY-MM-DD.
+    Supports formats:
+    - YYYYMMDD
+    - YYYY-MM-DD
+    - ISO 8601 timestamps (e.g. 2026-01-31T04:30:30.757Z)
+    - File paths containing a YYYYMMDD substring
+      (e.g. slcs/CAPELLA_C13_SP_SLC_HH_20260131043025_20260131043034.tif)
     """
     date_str = date_str.strip()
+
+    # Already ISO date
+    if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+        return date_str
+
+    # Compact YYYYMMDD
     if len(date_str) == 8 and date_str.isdigit():
-        # YYYYMMDD format
         return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-    return date_str
+
+    # ISO 8601 timestamp — take the date part
+    if "T" in date_str and date_str[:4].isdigit():
+        return date_str[:10]
+
+    # Fallback: extract first 8-digit sequence from the string (e.g. filename)
+    m = _DATE8_RE.search(date_str)
+    if m:
+        d = m.group(1)
+        return f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+
+    errmsg = f"Cannot parse date from: {date_str!r}"
+    raise ValueError(errmsg)
 
 
 def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
@@ -131,24 +160,40 @@ def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
 
     We solve for per-SLC baselines using least-squares with the
     first SLC as reference (bperp=0).
+
+    If 'reference_time_utc' and 'secondary_time_utc' columns are present,
+    dates are taken from those (more reliable). Otherwise dates are extracted
+    from the 'reference' and 'secondary' columns (which may be file paths).
     """
     ref_col = columns.index("reference")
     sec_col = columns.index("secondary")
     bperp_col = columns.index("bperp_m")
+
+    # Prefer the explicit UTC time columns when available
+    has_time_cols = "reference_time_utc" in columns and "secondary_time_utc" in columns
+    if has_time_cols:
+        ref_time_col = columns.index("reference_time_utc")
+        sec_time_col = columns.index("secondary_time_utc")
 
     ref_dates = []
     sec_dates = []
     bperp_ifg = []
 
     with open(filepath) as f:
-        next(f)  # skip header
-        for line in f:
-            parts = [p.strip() for p in line.strip().split(",")]
-            if not parts or not parts[0]:
+        reader = csv.reader(f)
+        next(reader)  # skip header
+        for row in reader:
+            if not row or not row[0].strip():
                 continue
-            ref_dates.append(_parse_date(parts[ref_col]))
-            sec_dates.append(_parse_date(parts[sec_col]))
-            bperp_ifg.append(float(parts[bperp_col]))
+            if has_time_cols:
+                ref_str = row[ref_time_col].strip()
+                sec_str = row[sec_time_col].strip()
+            else:
+                ref_str = row[ref_col].strip()
+                sec_str = row[sec_col].strip()
+            ref_dates.append(_parse_date(ref_str))
+            sec_dates.append(_parse_date(sec_str))
+            bperp_ifg.append(float(row[bperp_col].strip()))
 
     # Get unique dates sorted
     all_dates = sorted(set(ref_dates) | set(sec_dates))
@@ -166,7 +211,6 @@ def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
         ref_idx = date_to_idx[ref]
         sec_idx = date_to_idx[sec]
         # bperp_ifg[i] = bperp[sec] - bperp[ref]
-        # Column 0 is reference with bperp=0, so only adjust for non-reference
         if ref_idx > 0:
             amat[i, ref_idx - 1] = -1.0
         if sec_idx > 0:
