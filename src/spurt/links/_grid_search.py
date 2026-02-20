@@ -181,27 +181,65 @@ def _bounded_fmin(
     return xopt, fopt
 
 
+def _vectorized_grid_search(
+    matrix: np.ndarray,
+    rngs: tuple[slice, ...],
+    wdata: np.ndarray,
+    wts: np.ndarray | float,
+) -> np.ndarray:
+    """Find parameters maximizing temporal coherence over a regular grid.
+
+    Evaluates all grid points in a single batched numpy operation
+    instead of calling the objective function once per grid point.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Design matrix of shape ``(nifgs, ndim)``.
+    rngs : tuple[slice, ...]
+        One ``slice(start, stop, step)`` per parameter dimension.
+    wdata : np.ndarray
+        Wrapped phase data of shape ``(nifgs,)``.
+    wts : np.ndarray | float
+        Weights, either scalar or array of shape ``(nifgs,)``.
+
+    Returns
+    -------
+    np.ndarray
+        Best-fit parameter vector of shape ``(ndim,)``.
+    """
+    # Build 1D coordinate arrays for each parameter dimension
+    axes = [np.arange(s.start, s.stop, s.step) for s in rngs]
+
+    # Flattened grid of all parameter combinations: (ngrid, ndim)
+    grids = np.meshgrid(*axes, indexing="ij")
+    grid_flat = np.column_stack([g.ravel() for g in grids])
+
+    # Evaluate all grid points at once
+    # matrix @ grid_flat.T: (nifgs, ndim) @ (ndim, ngrid) -> (nifgs, ngrid)
+    residuals = matrix @ grid_flat.T - wdata[:, np.newaxis]
+
+    # Temporal coherence for all grid points
+    weighted_exp = np.exp(1j * residuals)
+    if isinstance(wts, np.ndarray):
+        weighted_exp *= wts[:, np.newaxis]
+    else:
+        weighted_exp *= wts
+    coherence = np.abs(weighted_exp.sum(axis=0))
+
+    return grid_flat[np.argmax(coherence)]
+
+
 def solve(
     matrix: np.ndarray,
     rngs: tuple[slice, ...],
     wdata: np.ndarray,
     wts: np.ndarray | float,
 ) -> tuple[np.ndarray, float]:
-    """Actual call to the solver."""
-
-    def finish(func: Any, x0: np.ndarray, **kwargs: Any) -> tuple:
-        # brute passes args=, full_output=, disp= as kwargs
-        args = kwargs.get("args", ())
-        return _bounded_fmin(func, x0, args, rngs)
-
-    resbrute = optimize.brute(
-        neg_temporal_coherence,
-        rngs,
-        args=(matrix, wdata, wts),
-        full_output=True,
-        finish=finish,
-    )
-    return (resbrute[0], -resbrute[1])
+    """Solve for model parameters via vectorized grid search + Nelder-Mead."""
+    x0 = _vectorized_grid_search(matrix, rngs, wdata, wts)
+    xopt, fopt = _bounded_fmin(neg_temporal_coherence, x0, (matrix, wdata, wts), rngs)
+    return (xopt, -fopt)
 
 
 def wrap_solve(
