@@ -1,6 +1,7 @@
 import numpy as np
 
 import spurt
+from spurt.links._grid_search import _vectorized_grid_search
 
 # Fix the seed for repeatability
 np.random.seed(32)
@@ -69,6 +70,35 @@ def test_grid_estimate():
             assert np.abs(vv - param[0]) < 15.0
             assert np.abs(dd - param[1]) < 0.5
             assert coh > 0.99
+
+
+def test_vectorized_grid_search():
+    """Test that vectorized grid search finds the correct grid point."""
+    amat, vel_range, demerr_range = gen_data()
+
+    # Noiseless data with known parameters on grid points
+    vel_true = 10.0
+    dem_true = 2.0
+    fwd_phase = amat @ np.array([vel_true, dem_true])
+    wts = 1.0 / amat.shape[0]
+
+    x0 = _vectorized_grid_search(amat, (vel_range, demerr_range), fwd_phase, wts)
+    np.testing.assert_allclose(x0[0], vel_true, atol=1e-10)
+    np.testing.assert_allclose(x0[1], dem_true, atol=1e-10)
+
+
+def test_vectorized_grid_search_with_weights():
+    """Test vectorized grid search with per-observation weight arrays."""
+    amat, vel_range, demerr_range = gen_data()
+
+    vel_true = -15.0
+    dem_true = 1.5
+    fwd_phase = amat @ np.array([vel_true, dem_true])
+    wts = np.ones(amat.shape[0]) / amat.shape[0]
+
+    x0 = _vectorized_grid_search(amat, (vel_range, demerr_range), fwd_phase, wts)
+    np.testing.assert_allclose(x0[0], vel_true, atol=1e-10)
+    np.testing.assert_allclose(x0[1], dem_true, atol=1e-10)
 
 
 def test_grid_estimate_many():
