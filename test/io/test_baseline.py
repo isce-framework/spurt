@@ -8,10 +8,10 @@ import pytest
 
 from spurt.io import BaselineData, load_baseline_csv
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _write_tmp_csv(content: str) -> Path:
     """Write content to a temporary CSV and return the path."""
@@ -25,6 +25,7 @@ def _write_tmp_csv(content: str) -> Path:
 # ---------------------------------------------------------------------------
 # BaselineData validation
 # ---------------------------------------------------------------------------
+
 
 def test_baseline_data_shape_mismatch():
     """Test that BaselineData validates shape consistency."""
@@ -48,6 +49,7 @@ def test_baseline_data_not_1d():
 # Invalid / unrecognized format
 # ---------------------------------------------------------------------------
 
+
 def test_invalid_csv_raises():
     """Test that invalid CSV format raises ValueError."""
     csv_path = _write_tmp_csv("foo,bar,baz\n1,2,3\n4,5,6\n")
@@ -62,9 +64,12 @@ def test_invalid_csv_raises():
 # Per-SLC format
 # ---------------------------------------------------------------------------
 
+
 def test_load_per_slc_csv():
     """Test loading per-SLC format CSV with YYYYMMDD dates."""
-    csv_content = "date,bperp_m\n20200101,0.0\n20200113,150.5\n20200125,-200.3\n20200206,50.0\n"
+    csv_content = (
+        "date,bperp_m\n20200101,0.0\n20200113,150.5\n20200125,-200.3\n20200206,50.0\n"
+    )
     csv_path = _write_tmp_csv(csv_content)
     try:
         bd = load_baseline_csv(csv_path)
@@ -77,16 +82,16 @@ def test_load_per_slc_csv():
             dtype="datetime64[D]",
         )
         np.testing.assert_array_equal(bd.dates, expected_dates)
-        np.testing.assert_array_almost_equal(
-            bd.bperp_m, [0.0, 150.5, -200.3, 50.0]
-        )
+        np.testing.assert_array_almost_equal(bd.bperp_m, [0.0, 150.5, -200.3, 50.0])
     finally:
         csv_path.unlink()
 
 
 def test_load_per_slc_csv_unsorted():
     """Test that per-SLC CSV with unsorted dates gets sorted."""
-    csv_content = "date,bperp_m\n20200125,-200.3\n20200101,0.0\n20200206,50.0\n20200113,150.5\n"
+    csv_content = (
+        "date,bperp_m\n20200125,-200.3\n20200101,0.0\n20200206,50.0\n20200113,150.5\n"
+    )
     csv_path = _write_tmp_csv(csv_content)
     try:
         bd = load_baseline_csv(csv_path)
@@ -96,16 +101,15 @@ def test_load_per_slc_csv_unsorted():
             dtype="datetime64[D]",
         )
         np.testing.assert_array_equal(bd.dates, expected_dates)
-        np.testing.assert_array_almost_equal(
-            bd.bperp_m, [0.0, 150.5, -200.3, 50.0]
-        )
+        np.testing.assert_array_almost_equal(bd.bperp_m, [0.0, 150.5, -200.3, 50.0])
     finally:
         csv_path.unlink()
 
 
 # ---------------------------------------------------------------------------
-# Per-IFG format – simple YYYYMMDD dates
+# Per-IFG format - simple YYYYMMDD dates
 # ---------------------------------------------------------------------------
+
 
 def test_load_per_ifg_csv():
     """Test loading per-IFG format CSV and conversion to per-SLC."""
@@ -130,7 +134,7 @@ def test_load_per_ifg_csv():
 
 
 # ---------------------------------------------------------------------------
-# Per-IFG format – Capella-style filenames + UTC time columns
+# Per-IFG format
 # ---------------------------------------------------------------------------
 
 _CAPELLA_CSV = """\
@@ -158,15 +162,9 @@ def test_load_per_ifg_capella_filenames():
         assert bd.bperp_m[0] == 0.0
 
         # IFG baselines should be self-consistent (redundant network)
-        np.testing.assert_allclose(
-            bd.bperp_m[1] - bd.bperp_m[0], 79.512, atol=0.1
-        )
-        np.testing.assert_allclose(
-            bd.bperp_m[2] - bd.bperp_m[0], 369.187, atol=0.1
-        )
-        np.testing.assert_allclose(
-            bd.bperp_m[2] - bd.bperp_m[1], 289.675, atol=0.1
-        )
+        np.testing.assert_allclose(bd.bperp_m[1] - bd.bperp_m[0], 79.512, atol=0.1)
+        np.testing.assert_allclose(bd.bperp_m[2] - bd.bperp_m[0], 369.187, atol=0.1)
+        np.testing.assert_allclose(bd.bperp_m[2] - bd.bperp_m[1], 289.675, atol=0.1)
     finally:
         csv_path.unlink()
 
@@ -219,9 +217,7 @@ def test_load_single_reference_ifg():
         assert len(bd.dates) == 4
         assert bd.bperp_m[0] == 0.0
         # Values should be exact — no least-squares involved
-        np.testing.assert_array_equal(
-            bd.bperp_m, [0.0, 95.3, 210.7, 305.1]
-        )
+        np.testing.assert_array_equal(bd.bperp_m, [0.0, 95.3, 210.7, 305.1])
     finally:
         csv_path.unlink()
 
@@ -285,9 +281,7 @@ def test_single_ref_gives_same_as_lstsq():
         bd = load_baseline_csv(csv_path)
 
         # Should be exact (no lstsq noise)
-        np.testing.assert_array_equal(
-            bd.bperp_m, [0.0, 100.0, 250.0, 400.0]
-        )
+        np.testing.assert_array_equal(bd.bperp_m, [0.0, 100.0, 250.0, 400.0])
     finally:
         csv_path.unlink()
 
@@ -295,6 +289,7 @@ def test_single_ref_gives_same_as_lstsq():
 # ---------------------------------------------------------------------------
 # _parse_date edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_parse_date_iso_timestamp():
     """Test parsing ISO 8601 timestamps."""

@@ -193,6 +193,50 @@ def test_emcf_with_baseline_csv_full_workflow():
         csv_path.unlink()
 
 
+def test_build_link_model_yyyymmdd_dates():
+    """Test that _build_link_model handles YYYYMMDD stack dates.
+
+    The SLCStackReader stores dates as YYYYMMDD strings, but numpy's
+    datetime64 misparses these (treating '20240626' as year 20240626).
+    This test verifies the dates are normalized before comparison.
+    """
+    from spurt.workflows.emcf._unwrap import _build_link_model
+
+    n_slc = 5
+    g_time = spurt.graph.Hop3Graph(n_slc)
+
+    # Stack dates in YYYYMMDD format (as SLCStackReader provides)
+    dates_yyyymmdd = ["20200101", "20200113", "20200125", "20200206", "20200218"]
+
+    csv_content = (
+        "date,bperp_m\n"
+        "20200101,0.0\n20200113,100.0\n20200125,200.0\n"
+        "20200206,150.0\n20200218,250.0\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        f.write(csv_content)
+        f.flush()
+        csv_path = Path(f.name)
+
+    try:
+        settings = LinkModelSettings(
+            enabled=True,
+            baseline_csv=str(csv_path),
+        )
+        model = _build_link_model(g_time, dates_yyyymmdd, settings)
+
+        # Model should have correct shape: (nifgs, 2)
+        assert model.matrix.shape == (len(g_time.links), 2)
+
+        # All velocity sensitivities should be positive (time moves forward)
+        assert np.all(model.matrix[:, 0] > 0)
+
+        # DEM error sensitivities should be nonzero (baselines vary)
+        assert not np.allclose(model.matrix[:, 1], 0.0)
+    finally:
+        csv_path.unlink()
+
+
 def test_cli_argument_parsing():
     """Test that CLI argument parsing works for baseline arguments."""
     import argparse

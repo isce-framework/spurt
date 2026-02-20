@@ -172,9 +172,7 @@ def _load_per_ifg_csv(filepath: Path, columns: list[str]) -> BaselineData:
     bperp_col = columns.index("bperp_m")
 
     # Prefer the explicit UTC time columns when available
-    has_time_cols = (
-        "reference_time_utc" in columns and "secondary_time_utc" in columns
-    )
+    has_time_cols = "reference_time_utc" in columns and "secondary_time_utc" in columns
     if has_time_cols:
         ref_time_col = columns.index("reference_time_utc")
         sec_time_col = columns.index("secondary_time_utc")

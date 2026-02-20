@@ -1,14 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from multiprocessing import get_context
-from typing import Any
 
 import numpy as np
-from scipy import optimize
 
-from ..utils import get_cpu_count, logger
-from ._common import neg_temporal_coherence
 from ._interface import LinkModelInterface
 
 
@@ -42,6 +37,57 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
     s.t: ranges[i][0] <= x_i <= ranges[i][1]
     """
 
+    def __post_init__(self):
+        super().__post_init__()
+        self._precompute()
+
+    def _precompute(self) -> None:
+        """Precompute grid, forward model, and complex exponentials.
+
+        These are constant for a given design matrix and search ranges,
+        so computing them once avoids redundant work per link.
+        """
+        axes = [np.arange(s.start, s.stop, s.step) for s in self.ranges]
+        self._grid_shape = tuple(len(a) for a in axes)
+        grids = np.meshgrid(*axes, indexing="ij")
+        self._grid_flat = np.column_stack([g.ravel() for g in grids])
+        self._grid_steps = np.array([s.step for s in self.ranges])
+
+        # Clip bounds from actual grid range
+        self._param_lo = self._grid_flat.min(axis=0)
+        self._param_hi = self._grid_flat.max(axis=0)
+
+        # Forward model for all grid points: (nobs, ngrid)
+        self._pred = self.matrix @ self._grid_flat.T
+
+        # Complex exponential of forward model: (nobs, ngrid)
+        self._E = np.exp(1j * self._pred)
+
+        # Quadratic refinement setup (2D only)
+        if self.ndim == 2:
+            self._init_quadratic_refinement()
+
+    def _init_quadratic_refinement(self) -> None:
+        """Precompute pseudoinverse for 3x3 quadratic surface fit."""
+        offsets = np.array(
+            [
+                [-1, -1],
+                [-1, 0],
+                [-1, 1],
+                [0, -1],
+                [0, 0],
+                [0, 1],
+                [1, -1],
+                [1, 0],
+                [1, 1],
+            ]
+        )
+        self._stencil_offsets = offsets
+        dx = offsets[:, 0].astype(np.float64)
+        dy = offsets[:, 1].astype(np.float64)
+        design = np.column_stack([np.ones(9), dx, dy, dx**2, dx * dy, dy**2])
+        self._refine_pinv = np.linalg.pinv(design)  # (6, 9)
+
     @property
     def nobs(self) -> int:
         return self.matrix.shape[0]
@@ -49,6 +95,11 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
     @property
     def ndim(self) -> int:
         return self.matrix.shape[1]
+
+    @property
+    def ngrid(self) -> int:
+        """Total number of grid points in the search space."""
+        return len(self._grid_flat)
 
     def fwd_model(self, x: np.ndarray) -> np.ndarray:
         return np.dot(self.matrix, x)
@@ -58,21 +109,21 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
         wrapdata: np.ndarray,
         weights: np.ndarray | float | None = None,
     ) -> tuple[np.ndarray, float]:
-        """Fit model parameters via grid search followed by Nelder-Mead optimization.
+        """Fit model parameters via grid search + quadratic refinement.
 
         Parameters
         ----------
-        wrapdata: np.ndarray
-            Real-valued array of wrapped phase gradient
-        weights: np.ndarray | None
-            Real-valued weights - assumed to be normalized to 1.
+        wrapdata : np.ndarray
+            Real-valued array of wrapped phase gradient, shape ``(nobs,)``.
+        weights : np.ndarray | float | None
+            Real-valued weights, assumed normalized to 1.
 
         Returns
         -------
-        params: np.ndarray
-            1D array of length ndim
-        coh: float
-            Temporal coherence
+        params : np.ndarray
+            1D array of length ``ndim``.
+        coh : float
+            Temporal coherence.
         """
         if wrapdata.ndim != 1:
             errmsg = f"Input data must be a 1D array. Got {wrapdata.shape}."
@@ -85,18 +136,39 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
             errmsg = f"Weights shape mismatch: {weights.shape} vs {wrapdata.shape}"
             raise ValueError(errmsg)
 
-        return solve(self.matrix, self.ranges, wrapdata, weights)
+        params, coh = self.estimate_model_many(wrapdata[:, np.newaxis], weights=weights)
+        return params[:, 0], float(coh[0])
 
     def estimate_model_many(
         self,
         wrapdata: np.ndarray,
         weights: np.ndarray | float | None = None,
-        worker_count: int | None = None,
+        worker_count: int | None = None,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Grid search followed by fmin in parallel."""
-        if (worker_count is None) or (worker_count <= 0):
-            worker_count = max(1, get_cpu_count() - 1)
+        """Batched grid search + quadratic refinement for many links.
 
+        Evaluates all grid points for all links simultaneously via a single
+        matrix multiply, then refines with quadratic interpolation. This
+        replaces the previous per-link grid search + Nelder-Mead approach.
+
+        Parameters
+        ----------
+        wrapdata : np.ndarray
+            Wrapped phase, shape ``(nobs, nlinks)``.
+        weights : np.ndarray | float | None
+            Weights. Scalar for uniform, 1D for per-observation,
+            2D for per-observation-per-link.
+        worker_count : int | None
+            Accepted for ``LinkModelInterface`` compatibility but not used.
+            The batched approach uses NumPy's internal BLAS threading.
+
+        Returns
+        -------
+        params : np.ndarray
+            Shape ``(ndim, nlinks)``.
+        coh : np.ndarray
+            Shape ``(nlinks,)``.
+        """
         if wrapdata.ndim != 2:
             errmsg = f"Input data must be a 2D array. Got {wrapdata.shape}."
             raise ValueError(errmsg)
@@ -105,80 +177,148 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
             errmsg = f"Input shape mismatch. Got {wrapdata.shape} vs {self.nobs}"
             raise ValueError(errmsg)
 
-        const_weights: bool = True
+        wts: np.ndarray | float
         if weights is None:
-            weights = 1.0 / self.nobs
-        elif isinstance(weights, np.ndarray):
-            if weights.ndim == 2:
-                if weights.shape != wrapdata.shape:
-                    errmsg = f"Weights shape mismatch. Got {weights.shape}"
-                    errmsg += f" vs {wrapdata.shape}"
-                    raise ValueError(errmsg)
-                const_weights = False
-                arr_weights: np.ndarray = weights
-
-            if weights.shape[0] != self.nobs:
-                errmsg = f"Weights shape mismatch. Got {weights.shape} vs {self.nobs}"
-                raise ValueError(errmsg)
-
-        # Return arrays
-        nruns: int = wrapdata.shape[1]
-        params: np.ndarray = np.zeros((self.ndim, nruns))
-        tcoh: np.ndarray = np.zeros(nruns)
-
-        # Run sequentially when only 1 worker available
-        if worker_count == 1:
-            for ii in range(nruns):
-                wts = weights if const_weights else arr_weights[:, ii]
-                res = self.estimate_model(
-                    wrapdata[:, ii],
-                    wts,
-                )
-                params[:, ii] = res[0]
-                tcoh[ii] = res[1]
+            wts = 1.0 / self.nobs
         else:
-            logger.info(f"Modeling batch of {nruns} with {worker_count} threads")
-
-            def inv_inputs(idxs):
-                for ii in idxs:
-                    wts = weights if const_weights else arr_weights[:, ii]
-                    yield (
-                        ii,
-                        self.matrix,
-                        self.ranges,
-                        wrapdata[:, ii],
-                        wts,
+            wts = weights
+            if isinstance(wts, np.ndarray):
+                if wts.ndim == 2 and wts.shape != wrapdata.shape:
+                    errmsg = (
+                        f"Weights shape mismatch."
+                        f" Got {wts.shape} vs {wrapdata.shape}"
                     )
+                    raise ValueError(errmsg)
+                if wts.ndim <= 1 and wts.shape[0] != self.nobs:
+                    errmsg = f"Weights shape mismatch. Got {wts.shape} vs {self.nobs}"
+                    raise ValueError(errmsg)
 
-            # Create a pool and dispatch
-            with get_context("fork").Pool(processes=worker_count) as p:
-                mp_tasks = p.imap_unordered(wrap_solve, inv_inputs(range(nruns)))
+        nlinks = wrapdata.shape[1]
 
-                # Gather results
-                for res in mp_tasks:  # type: ignore[assignment]
-                    params[:, res[0]] = res[1]
-                    tcoh[res[0]] = res[2]  # type: ignore[misc]
+        # Weighted conjugate of data: v[k, l] = wts_k * exp(-1j * wdata[k, l])
+        d_conj = np.exp(-1j * wrapdata)
+        if isinstance(wts, np.ndarray) and wts.ndim == 2:
+            weighted_conj = wts * d_conj
+        elif isinstance(wts, np.ndarray):
+            weighted_conj = wts[:, np.newaxis] * d_conj
+        else:
+            weighted_conj = wts * d_conj
 
-        return params, tcoh
+        # Coherence for all (grid point, link) pairs via single matmul:
+        #   coh_grid[g, l] = |sum_k E[k, g] * weighted_conj[k, l]|
+        coh_grid = self._E.T @ weighted_conj  # (ngrid, nlinks) complex
+        coherence = np.abs(coh_grid)  # (ngrid, nlinks)
 
+        # Best grid point per link
+        best_idx = np.argmax(coherence, axis=0)  # (nlinks,)
+        params = self._grid_flat[best_idx].T.copy()  # (ndim, nlinks)
+        coh = coherence[best_idx, np.arange(nlinks)]
 
-def _bounded_fmin(
-    func: Any,
-    x0: np.ndarray,
-    args: tuple,
-    rngs: tuple[slice, ...],
-) -> tuple[np.ndarray, float]:
-    """Nelder-Mead refinement clipped to search bounds."""
-    result = optimize.fmin(func, x0, args=args, full_output=True, disp=False)
-    xopt = np.asarray(result[0])
-    # Clip to search bounds to prevent aliasing
-    for ii, s in enumerate(rngs):
-        lo = s.start
-        hi = s.stop - s.step  # brute stop is exclusive
-        xopt[ii] = np.clip(xopt[ii], lo, hi)
-    # Re-evaluate at clipped point
-    fopt = func(xopt, *args)
-    return xopt, fopt
+        # Quadratic refinement (2D case)
+        if self.ndim == 2 and nlinks > 0:
+            params, coh = self._quadratic_refine_batch(
+                coherence, best_idx, wrapdata, wts
+            )
+
+        return params, coh
+
+    def _quadratic_refine_batch(
+        self,
+        coherence: np.ndarray,
+        best_idx: np.ndarray,
+        wrapdata: np.ndarray,
+        wts: np.ndarray | float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Refine grid search via 2D quadratic interpolation.
+
+        Fits a quadratic surface to the 3x3 coherence stencil around
+        each best grid point and solves for the analytic peak.
+        """
+        nlinks = len(best_idx)
+
+        # Convert flat grid indices to 2D
+        i0, i1 = np.unravel_index(best_idx, self._grid_shape)
+
+        # Build stencil grid indices: (nlinks, 9)
+        di = self._stencil_offsets[:, 0]  # (9,)
+        dj = self._stencil_offsets[:, 1]  # (9,)
+        si = np.clip(i0[:, None] + di[None, :], 0, self._grid_shape[0] - 1)
+        sj = np.clip(i1[:, None] + dj[None, :], 0, self._grid_shape[1] - 1)
+
+        # Flat stencil indices and extract coherence
+        flat_idx = np.ravel_multi_index((si, sj), self._grid_shape)
+        link_col = np.broadcast_to(np.arange(nlinks)[:, None], flat_idx.shape)
+        stencil_coh = coherence[flat_idx, link_col]  # (nlinks, 9)
+
+        # Fit quadratic: f(dx,dy) = a + b*dx + c*dy + d*dx^2 + e*dx*dy + f*dy^2
+        coeffs = stencil_coh @ self._refine_pinv.T  # (nlinks, 6)
+
+        b_c = coeffs[:, 1]
+        c_c = coeffs[:, 2]
+        d_c = coeffs[:, 3]
+        e_c = coeffs[:, 4]
+        f_c = coeffs[:, 5]
+
+        # Solve for quadratic peak: H @ [dx, dy] = -[b, c]
+        # where H = [[2d, e], [e, 2f]]
+        det = 4.0 * d_c * f_c - e_c**2
+        is_max = (d_c < 0) & (det > 0) & (np.abs(det) > 1e-12)
+
+        dx = np.zeros(nlinks)
+        dy = np.zeros(nlinks)
+        m = is_max
+        dx[m] = -(2.0 * f_c[m] * b_c[m] - e_c[m] * c_c[m]) / det[m]
+        dy[m] = -(2.0 * d_c[m] * c_c[m] - e_c[m] * b_c[m]) / det[m]
+
+        # Clip refinement to one grid step
+        dx = np.clip(dx, -1.0, 1.0)
+        dy = np.clip(dy, -1.0, 1.0)
+
+        # Build refined parameters
+        params = self._grid_flat[best_idx].T.copy()  # (ndim, nlinks)
+        params[0] += dx * self._grid_steps[0]
+        params[1] += dy * self._grid_steps[1]
+
+        # Clip to search bounds
+        for d in range(self.ndim):
+            params[d] = np.clip(params[d], self._param_lo[d], self._param_hi[d])
+
+        # Evaluate actual coherence at refined parameters
+        coh = self._eval_coherence(params, wrapdata, wts)
+
+        return params, coh
+
+    def _eval_coherence(
+        self,
+        params: np.ndarray,
+        wrapdata: np.ndarray,
+        wts: np.ndarray | float,
+    ) -> np.ndarray:
+        """Evaluate temporal coherence at given parameters.
+
+        Parameters
+        ----------
+        params : np.ndarray
+            Shape ``(ndim, nlinks)``.
+        wrapdata : np.ndarray
+            Shape ``(nobs, nlinks)``.
+        wts : np.ndarray | float
+            Weights.
+
+        Returns
+        -------
+        np.ndarray
+            Coherence values, shape ``(nlinks,)``.
+        """
+        residuals = self.matrix @ params - wrapdata  # (nobs, nlinks)
+        weighted_exp = np.exp(1j * residuals)
+        if isinstance(wts, np.ndarray) and wts.ndim == 2:
+            weighted_exp *= wts
+        elif isinstance(wts, np.ndarray):
+            weighted_exp *= wts[:, np.newaxis]
+        else:
+            weighted_exp *= wts
+        return np.abs(weighted_exp.sum(axis=0))
 
 
 def _vectorized_grid_search(
@@ -228,23 +368,3 @@ def _vectorized_grid_search(
     coherence = np.abs(weighted_exp.sum(axis=0))
 
     return grid_flat[np.argmax(coherence)]
-
-
-def solve(
-    matrix: np.ndarray,
-    rngs: tuple[slice, ...],
-    wdata: np.ndarray,
-    wts: np.ndarray | float,
-) -> tuple[np.ndarray, float]:
-    """Solve for model parameters via vectorized grid search + Nelder-Mead."""
-    x0 = _vectorized_grid_search(matrix, rngs, wdata, wts)
-    xopt, fopt = _bounded_fmin(neg_temporal_coherence, x0, (matrix, wdata, wts), rngs)
-    return (xopt, -fopt)
-
-
-def wrap_solve(
-    args: tuple[int, np.ndarray, tuple[slice], np.ndarray, np.ndarray | float],
-) -> tuple[int, np.ndarray, float]:
-    ind, ma, rg, wd, wt = args
-    out = solve(ma, rg, wd, wt)
-    return (ind, out[0], out[1])

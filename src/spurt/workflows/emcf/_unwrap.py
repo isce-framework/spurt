@@ -130,13 +130,15 @@ def _build_link_model(
 ) -> spurt.links.GridSearchLinearModel:
     """Build link model from settings and baseline data."""
     from spurt.io import load_baseline_csv
+    from spurt.io._baseline import _parse_date
     from spurt.links import GridSearchLinearModel, build_design_matrix
 
     assert settings.baseline_csv is not None
     baseline_data = load_baseline_csv(settings.baseline_csv)
 
-    # Convert stack dates to datetime64
-    stack_dates = np.array(dates, dtype="datetime64[D]")
+    # Convert stack dates to datetime64 (dates may be YYYYMMDD strings,
+    # which numpy misparses; normalize to ISO YYYY-MM-DD first)
+    stack_dates = np.array([_parse_date(d) for d in dates], dtype="datetime64[D]")
 
     # Build design matrix
     amat = build_design_matrix(
