@@ -9,7 +9,7 @@ from numpy.typing import ArrayLike
 from ortools.graph.python import min_cost_flow
 
 from ..graph import PlanarGraphInterface, order_points
-from ..utils import get_cpu_count
+from ..utils import get_cpu_count, logger
 from ._interface import MCFSolverInterface
 from .utils import flood_fill, phase_diff, sign_nonzero
 
@@ -253,32 +253,28 @@ class ORMCFSolver(MCFSolverInterface):
                     flows[ii, :] = self.residues_to_flows(res, cost, revcost=revcost)
 
         else:
-            print(f"Processing batch of {nruns} with {worker_count} threads")
+            logger.info(f"Processing batch of {nruns} with {worker_count} workers")
 
             def uw_inputs(idxs):
                 for ii in idxs:
-                    # Only solve if needed
                     if not np.any(residues[ii] != 0):
                         continue
+                    yield (ii, residues[ii])
 
-                    yield (
-                        ii,
-                        self._dual_edges,
-                        self._dual_edge_dir,
-                        residues[ii],
-                        cost,
-                        revcost,
-                    )
-
-            # Create a pool and dispatch
-            # We explicitly use fork here as osx has switched to using spawn
-            # and that really slows down the use of multiprocessing
-            with get_context("fork").Pool(processes=worker_count) as p:
+            # Use forkserver to avoid inheriting the parent's full memory.
+            # With fork, each worker gets the parent's entire address space
+            # (SLC data, gradients, etc.) causing memory explosion on macOS
+            # where COW page sharing breaks down due to reference counting.
+            # Constant arrays are shared once per worker via initializer.
+            with get_context("forkserver").Pool(
+                processes=worker_count,
+                initializer=_init_mcf_worker,
+                initargs=(self._dual_edges, self._dual_edge_dir, cost, revcost),
+            ) as p:
                 mp_tasks = p.imap_unordered(
-                    wrap_solve_mcf, uw_inputs(range(nruns)), chunksize=chunksize
+                    _worker_solve_mcf, uw_inputs(range(nruns)), chunksize=chunksize
                 )
 
-                # Gather results
                 for res in mp_tasks:
                     flows[res[0], :] = res[1]
 
@@ -360,9 +356,32 @@ def solve_mcf(
     return flows
 
 
-def wrap_solve_mcf(
-    args: tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None],
-) -> tuple[int, np.ndarray]:
-    """Parallel version of solve_mcf."""
-    ind, es, ed, rr, cc, rc = args
-    return (ind, solve_mcf(es, ed, rr, cc, rc))
+_mcf_worker_state: dict = {}
+
+
+def _init_mcf_worker(
+    dual_edges: np.ndarray,
+    dual_edge_dir: np.ndarray,
+    cost: np.ndarray,
+    revcost: np.ndarray,
+) -> None:
+    """Initialize MCF worker with constant solver data."""
+    _mcf_worker_state["dual_edges"] = dual_edges
+    _mcf_worker_state["dual_edge_dir"] = dual_edge_dir
+    _mcf_worker_state["cost"] = cost
+    _mcf_worker_state["revcost"] = revcost
+
+
+def _worker_solve_mcf(args: tuple[int, np.ndarray]) -> tuple[int, np.ndarray]:
+    """Solve a single MCF problem using shared worker state."""
+    ii, residues = args
+    return (
+        ii,
+        solve_mcf(
+            _mcf_worker_state["dual_edges"],
+            _mcf_worker_state["dual_edge_dir"],
+            residues,
+            _mcf_worker_state["cost"],
+            _mcf_worker_state["revcost"],
+        ),
+    )

@@ -147,9 +147,10 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Batched grid search + quadratic refinement for many links.
 
-        Evaluates all grid points for all links simultaneously via a single
-        matrix multiply, then refines with quadratic interpolation. This
-        replaces the previous per-link grid search + Nelder-Mead approach.
+        Evaluates all grid points for all links via matrix multiply, then
+        refines with quadratic interpolation. Links are processed in chunks
+        to keep the intermediate ``(ngrid, nlinks)`` coherence matrix within
+        a reasonable memory budget.
 
         Parameters
         ----------
@@ -203,22 +204,40 @@ class GridSearchLinearModel(Parameters, LinkModelInterface):
             weighted_conj = wts[:, np.newaxis] * d_conj
         else:
             weighted_conj = wts * d_conj
+        del d_conj
 
-        # Coherence for all (grid point, link) pairs via single matmul:
-        #   coh_grid[g, l] = |sum_k E[k, g] * weighted_conj[k, l]|
-        coh_grid = self._E.T @ weighted_conj  # (ngrid, nlinks) complex
-        coherence = np.abs(coh_grid)  # (ngrid, nlinks)
+        # Chunk links so the intermediate (ngrid, chunk) coherence matrix
+        # stays under ~512 MB. Each link needs ngrid * 24 bytes
+        # (16 for complex128 matmul result + 8 for float64 abs).
+        bytes_per_link = self.ngrid * 24
+        chunk_size = max(1, int(512e6 / bytes_per_link))
 
-        # Best grid point per link
-        best_idx = np.argmax(coherence, axis=0)  # (nlinks,)
-        params = self._grid_flat[best_idx].T.copy()  # (ndim, nlinks)
-        coh = coherence[best_idx, np.arange(nlinks)]
+        params = np.zeros((self.ndim, nlinks), dtype=np.float64)
+        coh = np.zeros(nlinks, dtype=np.float64)
 
-        # Quadratic refinement (2D case)
-        if self.ndim == 2 and nlinks > 0:
-            params, coh = self._quadratic_refine_batch(
-                coherence, best_idx, wrapdata, wts
-            )
+        for start in range(0, nlinks, chunk_size):
+            end = min(start + chunk_size, nlinks)
+            sl = slice(start, end)
+
+            # Grid search for this chunk
+            coh_grid = self._E.T @ weighted_conj[:, sl]  # (ngrid, chunk)
+            coherence = np.abs(coh_grid)  # (ngrid, chunk)
+            del coh_grid
+
+            best_idx = np.argmax(coherence, axis=0)
+            chunk_n = end - start
+
+            # Quadratic refinement (2D case)
+            if self.ndim == 2 and chunk_n > 0:
+                chunk_wts = (
+                    wts[:, sl] if isinstance(wts, np.ndarray) and wts.ndim == 2 else wts
+                )
+                params[:, sl], coh[sl] = self._quadratic_refine_batch(
+                    coherence, best_idx, wrapdata[:, sl], chunk_wts
+                )
+            else:
+                params[:, sl] = self._grid_flat[best_idx].T
+                coh[sl] = coherence[best_idx, np.arange(chunk_n)]
 
         return params, coh
 

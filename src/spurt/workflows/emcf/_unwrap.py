@@ -27,7 +27,7 @@ def unwrap_tiles(
     tile_json = gen_settings.tiles_jsonname
     tiledata = spurt.utils.TileSet.from_json(tile_json)
 
-    mp_context = mp.get_context("fork")
+    mp_context = mp.get_context("forkserver")
     with ProcessPoolExecutor(
         max_workers=solv_settings.num_parallel_tiles, mp_context=mp_context
     ) as executor:

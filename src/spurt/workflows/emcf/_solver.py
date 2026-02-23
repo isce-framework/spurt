@@ -352,18 +352,17 @@ class EMCFSolver:
         if nworkers < 1:
             nworkers = get_cpu_count() - 1
 
-        mp_context = mp.get_context("fork")
+        # Use forkserver to avoid inheriting the parent's full memory.
+        # Constant data (solver, cost) is shared once per worker via initializer.
+        mp_context = mp.get_context("forkserver")
         with ProcessPoolExecutor(
-            max_workers=nworkers, mp_context=mp_context
+            max_workers=nworkers,
+            mp_context=mp_context,
+            initializer=_init_spatial_worker,
+            initargs=(self._solver_space, cost),
         ) as executor:
             futures = {
-                executor.submit(
-                    _unwrap_ifg_in_space,
-                    grad_space[ii, :],
-                    self._solver_space,
-                    cost,
-                    ii,
-                ): ii
+                executor.submit(_unwrap_ifg_in_space, ii, grad_space[ii, :]): ii
                 for ii in range(self.nifgs)
             }
             for fut in as_completed(futures):
@@ -418,7 +417,19 @@ class EMCFSolver:
         grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1, model=model)
 
 
-def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
+_spatial_worker_state: dict = {}
+
+
+def _init_spatial_worker(solver_space, cost):
+    """Initialize spatial unwrapping worker with solver and cost data."""
+    _spatial_worker_state["solver"] = solver_space
+    _spatial_worker_state["cost"] = cost
+
+
+def _unwrap_ifg_in_space(ii, ifg_grad):
+    solver_space = _spatial_worker_state["solver"]
+    cost = _spatial_worker_state["cost"]
+
     # Compute residues
     residues = solver_space.compute_residues_from_gradients(ifg_grad)
 
