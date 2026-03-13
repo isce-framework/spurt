@@ -435,6 +435,28 @@ def write_link_params(
     like_raster = None if like is None else spurt.io.Raster(like)
     written: list[Path] = []
 
+    # Check which output files already exist so we can skip work
+    # We need to peek at ndim from the first tile to build the full file list
+    first_tile = str(gen_settings.tile_filename(0))
+    with h5py.File(first_tile, "r") as fid:
+        if "link_params" not in fid:
+            logger.info("No link_params in tile files. Skipping link param output.")
+            return written
+        ndim_check = fid["link_params"].shape[0]
+
+    expected_names = [
+        param_names[dd] if dd < len(param_names) else f"param_{dd}"
+        for dd in range(ndim_check)
+    ]
+    expected_files = [output_dir / f"{name}.tif" for name in expected_names]
+    expected_files.append(output_dir / "link_model_coherence.tif")
+
+    if all(f.is_file() for f in expected_files):
+        for f in expected_files:
+            logger.info(f"{f!s} already exists. Skipping writing ...")
+            written.append(f)
+        return written
+
     # Accumulate all tiles into full-size rasters before writing.
     # Each tile is integrated independently, then placed into global arrays.
     param_arrays: list[np.ndarray] | None = None
@@ -443,11 +465,6 @@ def write_link_params(
 
     for tt in range(tiledata.ntiles):
         tile_file = str(gen_settings.tile_filename(tt))
-        with h5py.File(tile_file, "r") as fid:
-            if "link_params" not in fid:
-                logger.info("No link_params in tile files. Skipping link param output.")
-                return written
-
         coords, point_params, point_coh, ndim = _integrate_tile_link_params(tile_file)
 
         # Initialize output arrays on first tile
