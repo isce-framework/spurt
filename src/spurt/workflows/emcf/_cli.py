@@ -5,8 +5,15 @@ import spurt
 
 from ._bulk_offset import get_bulk_offsets
 from ._merge import merge_tiles
+from ._output import write_link_params
 from ._overlap import compute_phasediff_deciles
-from ._settings import GeneralSettings, MergerSettings, SolverSettings, TilerSettings
+from ._settings import (
+    GeneralSettings,
+    LinkModelSettings,
+    MergerSettings,
+    SolverSettings,
+    TilerSettings,
+)
 from ._tiling import get_tiles
 from ._unwrap import unwrap_tiles
 
@@ -105,6 +112,64 @@ def main(args=None):
         "--log-file",
         help="Path to save the log file (in addition to printing to stderr).",
     )
+    parser.add_argument(
+        "--date-fmt",
+        default="%Y%m%d",
+        help=(
+            "strftime format used to extract acquisition dates from SLC"
+            " filenames and to write the date portion of unwrapped output"
+            " filenames. Use a longer format such as '%%Y%%m%%d%%H%%M%%S' to"
+            " preserve a time-of-day component (e.g. for non-Sentinel cadences"
+            " with same-day repeats)."
+        ),
+    )
+
+    # Link model / velocity estimation arguments
+    parser.add_argument(
+        "--baseline-csv",
+        type=str,
+        default=None,
+        help="Path to CSV with perpendicular baselines. Enables velocity estimation.",
+    )
+    parser.add_argument(
+        "--no-velocity-estimation",
+        action="store_true",
+        help="Disable velocity/DEM error estimation even if baseline CSV is provided.",
+    )
+    parser.add_argument(
+        "--wavelength",
+        type=float,
+        default=0.055465,
+        help="Radar wavelength in meters.",
+    )
+    parser.add_argument(
+        "--slant-range",
+        type=float,
+        default=900000.0,
+        help="Slant range distance in meters.",
+    )
+    parser.add_argument(
+        "--look-angle-deg",
+        type=float,
+        default=39.0,
+        help="Look angle in degrees.",
+    )
+    parser.add_argument(
+        "--velocity-range",
+        type=float,
+        nargs=3,
+        default=[-100.0, 100.0, 5.0],
+        metavar=("MIN", "MAX", "STEP"),
+        help="Velocity search range in mm/yr: min max step.",
+    )
+    parser.add_argument(
+        "--dem-error-range",
+        type=float,
+        nargs=3,
+        default=[-50.0, 50.0, 2.5],
+        metavar=("MIN", "MAX", "STEP"),
+        help="DEM error search range in meters: min max step.",
+    )
 
     # Parse arguments
     parsed_args = parser.parse_args(args=args)
@@ -118,6 +183,7 @@ def main(args=None):
     stack = spurt.io.SLCStackReader.from_phase_linked_directory(
         parsed_args.inputdir,
         temp_coh_threshold=parsed_args.coh,
+        date_fmt=parsed_args.date_fmt,
     )
 
     # Create general settings
@@ -148,6 +214,20 @@ def main(args=None):
         num_parallel_ifgs=parsed_args.merge_parallel_ifgs,
     )
 
+    # Create link model settings if baseline CSV is provided and not disabled
+    link_model_settings: LinkModelSettings | None = None
+    if parsed_args.baseline_csv and not parsed_args.no_velocity_estimation:
+        link_model_settings = LinkModelSettings(
+            enabled=True,
+            wavelength_m=parsed_args.wavelength,
+            slant_range_m=parsed_args.slant_range,
+            look_angle_deg=parsed_args.look_angle_deg,
+            velocity_range=tuple(parsed_args.velocity_range),
+            dem_error_range=tuple(parsed_args.dem_error_range),
+            baseline_csv=parsed_args.baseline_csv,
+        )
+        logger.info(f"Link model enabled with baselines: {parsed_args.baseline_csv}")
+
     # Using default Hop3Graph
     logger.info(f"Using Hop3 Graph in time with {len(stack.slc_files)} epochs.")
     g_time = spurt.graph.Hop3Graph(len(stack.slc_files))
@@ -157,7 +237,7 @@ def main(args=None):
     get_tiles(stack, gen_settings, tile_settings)
 
     # Unwrap tiles
-    unwrap_tiles(stack, g_time, gen_settings, slv_settings)
+    unwrap_tiles(stack, g_time, gen_settings, slv_settings, link_model_settings)
 
     # Compute overlap stats
     compute_phasediff_deciles(gen_settings, mrg_settings)
@@ -167,5 +247,10 @@ def main(args=None):
 
     # Merge tiles and write output
     merge_tiles(stack, g_time, gen_settings, mrg_settings)
+
+    # Write link model parameters (velocity, DEM error) if available
+    if link_model_settings is not None:
+        like_slc_file = stack.slc_files[stack.dates[-1]]
+        write_link_params(gen_settings, stack.raster_shape, like=like_slc_file)
 
     logger.info("Completed EMCF workflow.")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,30 @@ from ._three_d import Irreg3DInput
 __all__ = [
     "SLCStackReader",
 ]
+
+DEFAULT_DATE_FMT = "%Y%m%d"
+
+
+def _date_str_length(fmt: str) -> int:
+    """Return the length of a date string formatted with `fmt`.
+
+    Used to slice the date portion out of an SLC filename when ``fmt``
+    includes a time-of-day component (e.g. ``"%Y%m%d%H%M%S"``).
+    """
+    return len(datetime(2020, 1, 1, 12, 30, 45).strftime(fmt))
+
+
+def _extract_date_str(token: str, date_fmt: str, date_len: int) -> str:
+    """Slice a date prefix from `token` and validate it against `date_fmt`.
+
+    Raises ``ValueError`` (from :func:`datetime.datetime.strptime`) if the
+    sliced substring does not match the format. This catches a mismatched
+    ``--date-fmt`` at scan time rather than letting a garbage prefix flow
+    through into output filenames.
+    """
+    s = token[:date_len]
+    datetime.strptime(s, date_fmt)
+    return s
 
 
 class SLCStackReader:
@@ -65,6 +90,7 @@ class SLCStackReader:
         cls,
         folder: str | os.PathLike[str],
         temp_coh_threshold: float = 0.6,
+        date_fmt: str = DEFAULT_DATE_FMT,
     ) -> SLCStackReader:
         """Initialize stack by scanning a folder.
 
@@ -72,6 +98,19 @@ class SLCStackReader:
         for now. metadata and spatial coherence to be dealt with later.
         This folder structure corresponds to current test data for `spurt`
         and will likely evolve.
+
+        Parameters
+        ----------
+        folder : str or PathLike
+            Directory containing the phase-linked SLC stack.
+        temp_coh_threshold : float, optional
+            Minimum temporal coherence to consider a pixel stable.
+        date_fmt : str, optional
+            ``strftime``-compatible format used to extract acquisition dates
+            from SLC filenames. Default ``"%Y%m%d"``. Use a longer format such
+            as ``"%Y%m%d%H%M%S"`` to preserve a time-of-day component (e.g.
+            for non-Sentinel cadences with same-day repeats); the unwrapped
+            output filenames will then carry the same component.
         """
         p = Path(folder)
 
@@ -83,7 +122,10 @@ class SLCStackReader:
 
         # Then list individual SLCs
         slclist = sorted(p.glob("*.int.tif"))
-        first_date = slclist[0].name.split("_")[0][:8]
+        date_len = _date_str_length(date_fmt)
+        first_date = _extract_date_str(
+            slclist[0].name.split("_")[0], date_fmt, date_len
+        )
 
         # Start with first date - set to None
         # None is special case for reference epoch
@@ -100,7 +142,7 @@ class SLCStackReader:
                 )
                 raise ValueError(errmsg)
 
-            acq_date = slc.name.split("_")[1][:8]
+            acq_date = _extract_date_str(slc.name.split("_")[1], date_fmt, date_len)
             if acq_date in slc_files:
                 errmsg = (
                     f"Error scanning {folder}."
@@ -120,6 +162,7 @@ class SLCStackReader:
         cls,
         folder: str | os.PathLike[str],
         temp_coh_threshold: float = 0.6,
+        date_fmt: str = DEFAULT_DATE_FMT,
     ) -> SLCStackReader:
         """Initialize stack by scanning a folder.
 
@@ -129,6 +172,18 @@ class SLCStackReader:
         and will likely evolve. This is a totally made up directory structure
         to demonstrate use of same data structure. The temporal coherence file
         could just be a mask file as well for good pixels here.
+
+        Parameters
+        ----------
+        folder : str or PathLike
+            Directory containing the SLC stack.
+        temp_coh_threshold : float, optional
+            Minimum temporal coherence (or quality value) to consider a pixel
+            stable.
+        date_fmt : str, optional
+            ``strftime``-compatible format used to extract acquisition dates
+            from SLC filenames. Default ``"%Y%m%d"``. See
+            :meth:`from_phase_linked_directory` for details.
         """
         p = Path(folder)
 
@@ -140,10 +195,11 @@ class SLCStackReader:
 
         # Then list individual SLCs
         slclist = sorted(p.glob("*.slc.tif"))
+        date_len = _date_str_length(date_fmt)
         slc_files = {}
 
         for slc in slclist:
-            acq_date = slc.name.split("_")[0][:8]
+            acq_date = _extract_date_str(slc.name.split("_")[0], date_fmt, date_len)
             if acq_date in slc_files:
                 errmsg = (
                     f"Error scanning {folder}."

@@ -58,7 +58,7 @@ Issues = "https://github.com/isce-framework/spurt/issues"
 
 # Entry points for the command line interface
 [project.scripts]
-spurt-emcf = "spurt.workflows.emcf:__main__"
+spurt-emcf = "spurt.workflows.emcf._cli:main"
 
 [tool.black]
 preview = true
@@ -120,6 +120,7 @@ ignore = [
   "D105", # Missing docstring in magic method
   "PLR",  # Pylint Refactor
   "PLC0415", #  `import` should be at the top-level of a file
+  "PTH123", # Path.open
 ]
 
 [tool.ruff.lint.per-file-ignores]

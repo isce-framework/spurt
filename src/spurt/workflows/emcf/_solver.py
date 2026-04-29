@@ -54,9 +54,10 @@ class EMCFSolver:
         self._settings = settings
         self._link_model = link_model
 
-        if link_model is not None:
-            errmsg = "Not implemented yet."
-            raise NotImplementedError(errmsg)
+        # Estimated link parameters (velocity, DEM error, etc.)
+        # Populated during unwrap_gradients_in_time when link_model is provided
+        self.link_params: np.ndarray | None = None
+        self.link_coherence: np.ndarray | None = None
 
     @property
     def npoints(self) -> int:
@@ -87,6 +88,53 @@ class EMCFSolver:
     def link_model(self) -> LinkModelInterface | None:
         """Retrieve the link model for the workflow."""
         return self._link_model
+
+    def integrate_link_params(self, param_idx: int = 0) -> np.ndarray:
+        """Integrate link parameters to get point values via least-squares.
+
+        Converts per-link parameters (e.g., velocity gradients) to per-point
+        values by solving the least-squares problem: find v such that
+        v[j] - v[i] ~= grad[edge] for all edges. The first point is used
+        as reference (value = 0).
+
+        Parameters
+        ----------
+        param_idx: int
+            Index of the parameter to integrate (default 0, typically velocity).
+
+        Returns
+        -------
+        point_values: np.ndarray
+            1D array of shape (npoints,) with integrated parameter values.
+        """
+        if self.link_params is None:
+            errmsg = "No link parameters available. Run unwrap with link_model first."
+            raise RuntimeError(errmsg)
+
+        from scipy.sparse import csr_matrix
+        from scipy.sparse.linalg import lsqr
+
+        link_gradients = self.link_params[param_idx, :]
+        edges = self._solver_space.edges
+
+        # Build incidence matrix: A[edge, :] has -1 at source, +1 at dest
+        nlinks = len(edges)
+        data = np.ones(2 * nlinks, dtype=np.float64)
+        data[0::2] = -1.0  # -1 for source node
+        data[1::2] = 1.0  # +1 for dest node
+        row_indices = np.repeat(np.arange(nlinks), 2)
+        col_indices = edges.flatten()
+        incidence = csr_matrix(
+            (data, (row_indices, col_indices)), shape=(nlinks, self.npoints)
+        )
+
+        # Solve least-squares: incidence @ point_values = link_gradients
+        # Add constraint: point_values[0] = 0 by dropping first column
+        result = lsqr(incidence[:, 1:], link_gradients.astype(np.float64))
+        point_values = np.zeros(self.npoints, dtype=np.float64)
+        point_values[1:] = result[0]
+
+        return point_values
 
     def unwrap_cube(self, wrap_data: Irreg3DInput) -> np.ndarray:
         """Unwrap a 3D cube of data.
@@ -126,7 +174,10 @@ class EMCFSolver:
             wrap_data.data, input_is_ifg=input_is_ifg
         )
 
-        # Then unwrap spatial gradients
+        # Then unwrap spatial gradients.
+        # Note: phase_diff(z0, z1, model=m) returns the FULL gradient
+        # (z1-z0) wrapped around the model — not the residual. The model
+        # guides wrapping disambiguation but does not need to be restored.
         return self.unwrap_gradients_in_space(grad_space)
 
     def unwrap_gradients_in_time(
@@ -160,6 +211,13 @@ class EMCFSolver:
         # Create output array
         grad_space: np.ndarray = np.zeros((self.nifgs, self.nlinks), dtype=np.float32)
 
+        # Initialize storage for estimated parameters if link_model is provided
+        if self._link_model is not None:
+            self.link_params = np.zeros(
+                (self._link_model.ndim, self.nlinks), dtype=np.float32
+            )
+            self.link_coherence = np.zeros(self.nlinks, dtype=np.float32)
+
         logger.info(f"Temporal: Number of interferograms: {self.nifgs}")
         logger.info(f"Temporal: Number of links: {self.nlinks}")
         logger.info(f"Temporal: Number of cycles: {self._solver_time.ncycles}")
@@ -178,9 +236,6 @@ class EMCFSolver:
             # Get indices of points forming links from spatial graph
             inds = self._solver_space.edges[i_start:i_end, :]
 
-            # TODO: Incorporate link_model here when ready
-            # Add self._modeled_phase_diff to replace phase_diff
-
             # Compute spatial gradients for each link
             # If input data is already interferograms
             if input_is_ifg:
@@ -192,6 +247,45 @@ class EMCFSolver:
                 self._ifg_spatial_gradients_from_slc(
                     wrap_data, inds, grad_space, np.s_[i_start:i_end]
                 )
+
+            # If link_model is provided, estimate parameters and flatten gradients
+            if self._link_model is not None:
+                assert self.link_params is not None
+                assert self.link_coherence is not None
+
+                logger.info(f"Temporal: Estimating model for batch {bb + 1}/{nbatches}")
+
+                # Estimate model parameters for this batch of links
+                batch_params, batch_coh = self._link_model.estimate_model_many(
+                    grad_space[:, i_start:i_end],
+                    worker_count=self.settings.t_worker_count,
+                )
+
+                # Store estimated parameters and coherence
+                self.link_params[:, i_start:i_end] = batch_params
+                self.link_coherence[i_start:i_end] = batch_coh
+
+                # Compute model prediction for each interferogram and link
+                # fwd_model: (nifgs, ndim) @ (ndim, nlinks) -> (nifgs, nlinks)
+                model_pred = self._link_model.fwd_model(batch_params)
+                assert model_pred.shape == (self.nifgs, links_in_batch)
+
+                # Recompute gradients using model to guide wrapping
+                # phase_diff with model returns gradient wrapped around model_pred
+                if input_is_ifg:
+                    grad_space[:, i_start:i_end] = utils.phase_diff(
+                        wrap_data[:, inds[:, 0]],
+                        wrap_data[:, inds[:, 1]],
+                        model=model_pred,
+                    )
+                else:
+                    self._ifg_spatial_gradients_from_slc(
+                        wrap_data,
+                        inds,
+                        grad_space,
+                        np.s_[i_start:i_end],
+                        model=model_pred,
+                    )
 
             # Compute residues for each cycle in temporal graph
             # Easier to loop over interferograms here
@@ -258,18 +352,17 @@ class EMCFSolver:
         if nworkers < 1:
             nworkers = get_cpu_count() - 1
 
-        mp_context = mp.get_context("fork")
+        # Use forkserver to avoid inheriting the parent's full memory.
+        # Constant data (solver, cost) is shared once per worker via initializer.
+        mp_context = mp.get_context("forkserver")
         with ProcessPoolExecutor(
-            max_workers=nworkers, mp_context=mp_context
+            max_workers=nworkers,
+            mp_context=mp_context,
+            initializer=_init_spatial_worker,
+            initargs=(self._solver_space, cost),
         ) as executor:
             futures = {
-                executor.submit(
-                    _unwrap_ifg_in_space,
-                    grad_space[ii, :],
-                    self._solver_space,
-                    cost,
-                    ii,
-                ): ii
+                executor.submit(_unwrap_ifg_in_space, ii, grad_space[ii, :]): ii
                 for ii in range(self.nifgs)
             }
             for fut in as_completed(futures):
@@ -284,6 +377,7 @@ class EMCFSolver:
         edges: np.ndarray,
         grad_space: np.ndarray,
         link_slice: slice,
+        model: float | np.ndarray = 0.0,
     ) -> None:
         """Compute interferometric spatial gradients from slc data.
 
@@ -299,6 +393,10 @@ class EMCFSolver:
             This array gets updated in place.
         link_slice: slice
             Slice corresponding to edges within the array of all links.
+        model: float | np.ndarray
+            Model prediction for spatial gradients. When provided, wraps
+            the gradient around the model to guide disambiguation.
+            Shape (nifg, nlinks_in_batch) or scalar 0.0 (default).
         """
         # Interferogram edges
         ifg_inds = self._solver_time.edges
@@ -315,18 +413,37 @@ class EMCFSolver:
             slc_data1[ifg_inds[:, 0], :], slc_data1[ifg_inds[:, 1], :]
         )
 
-        # Update gradient in place
-        grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1)
+        # Update gradient in place, using model to guide wrapping
+        grad_space[:, link_slice] = utils.phase_diff(ifg_data0, ifg_data1, model=model)
 
 
-def _unwrap_ifg_in_space(ifg_grad, solver_space, cost, ii):
+_spatial_worker_state: dict = {}
+
+
+def _init_spatial_worker(solver_space, cost):
+    """Initialize spatial unwrapping worker with solver and cost data."""
+    _spatial_worker_state["solver"] = solver_space
+    _spatial_worker_state["cost"] = cost
+
+
+def _unwrap_ifg_in_space(ii, ifg_grad):
+    solver_space = _spatial_worker_state["solver"]
+    cost = _spatial_worker_state["cost"]
+
     # Compute residues
     residues = solver_space.compute_residues_from_gradients(ifg_grad)
 
     # Unwrap the interferogram - sequential
     flows = solver_space.residues_to_flows(residues, cost)
 
-    # Flood fill
-    out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
+    # Flood fill - tolerate closure errors by filling with NaN
+    try:
+        out = utils.flood_fill(ifg_grad, solver_space.edges, flows, mode="gradients")
+    except ValueError as e:
+        if "closure errors" in str(e):
+            logger.warning(f"Spatial unwrapping {ii + 1}: {e}. Filling with NaN.")
+            out = np.full(solver_space.npoints, np.nan, dtype=np.float32)
+        else:
+            raise
     logger.info(f"Completed spatial unwrapping {ii + 1}")
     return ii, out

@@ -1,5 +1,6 @@
 from typing import Any
 
+from ._baseline import BaselineData, load_baseline_csv
 from ._interface import (
     InputInterface,
     InputStackInterface,
@@ -9,12 +10,14 @@ from ._interface import (
 from ._three_d import Irreg3DInput, Reg3DInput
 
 __all__ = [
+    "BaselineData",
     "InputInterface",
     "InputStackInterface",
     "Irreg3DInput",
     "OutputInterface",
     "OutputStackInterface",
     "Reg3DInput",
+    "load_baseline_csv",
 ]
 
 

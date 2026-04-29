@@ -344,7 +344,7 @@ def dirichlet_graph(
             corrections[kk, ~mask] = 0
             continue
 
-        x, info = cg(
+        x, _info = cg(
             mat,
             b,
             rtol=1e-7,
