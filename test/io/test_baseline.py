@@ -15,10 +15,8 @@ from spurt.io import BaselineData, load_baseline_csv
 
 def _write_tmp_csv(content: str) -> Path:
     """Write content to a temporary CSV and return the path."""
-    f = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
-    f.write(content)
-    f.flush()
-    f.close()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        f.write(content)
     return Path(f.name)
 
 
@@ -315,6 +313,19 @@ def test_parse_date_unparseable():
         _parse_date("no-date-here")
 
 
+def test_parse_date_compact_with_time():
+    """Test parsing compact YYYYMMDD[T]HHMMSS strings used as stack date keys.
+
+    The bare ``T`` separator without dashes (e.g. ``20200101T120000``) used
+    to be misclassified as an ISO 8601 timestamp and truncated to
+    ``20200101T1`` before regex fallback could see it.
+    """
+    from spurt.io._baseline import _parse_date
+
+    assert _parse_date("20200101120000") == "2020-01-01"
+    assert _parse_date("20200101T120000") == "2020-01-01"
+
+
 # ---------------------------------------------------------------------------
 # OPERA CSLC-S1 filenames
 # ---------------------------------------------------------------------------
@@ -350,7 +361,7 @@ def test_parse_date_opera_cslc():
     """Test date extraction from OPERA CSLC-S1 filenames."""
     from spurt.io._baseline import _parse_date
 
-    f = "OPERA_L2_CSLC-S1_T078-165495-IW2_20230105T120000Z_20230120T000000Z_S1A_VV_v1.0.h5"
+    f = "OPERA_L2_CSLC-S1_T078-165495-IW2_20230105T120000Z_20230120T000000Z_S1A_VV_v1.0.h5"  # noqa: E501
     assert _parse_date(f) == "2023-01-05"
 
 
@@ -383,7 +394,7 @@ def test_parse_date_opera_compressed_cslc():
     """Test date extraction from OPERA COMPRESSED-CSLC-S1 filenames."""
     from spurt.io._baseline import _parse_date
 
-    f = "OPERA_L2_COMPRESSED-CSLC-S1_F23148_T078-165495-IW2_20230105T120000Z_20221001T000000Z_20230101T000000Z_20230115T000000Z_VV_v1.1.h5"
+    f = "OPERA_L2_COMPRESSED-CSLC-S1_F23148_T078-165495-IW2_20230105T120000Z_20221001T000000Z_20230101T000000Z_20230115T000000Z_VV_v1.1.h5"  # noqa: E501
     assert _parse_date(f) == "2023-01-05"
 
 

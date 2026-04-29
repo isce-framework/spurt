@@ -112,6 +112,17 @@ def main(args=None):
         "--log-file",
         help="Path to save the log file (in addition to printing to stderr).",
     )
+    parser.add_argument(
+        "--date-fmt",
+        default="%Y%m%d",
+        help=(
+            "strftime format used to extract acquisition dates from SLC"
+            " filenames and to write the date portion of unwrapped output"
+            " filenames. Use a longer format such as '%%Y%%m%%d%%H%%M%%S' to"
+            " preserve a time-of-day component (e.g. for non-Sentinel cadences"
+            " with same-day repeats)."
+        ),
+    )
 
     # Link model / velocity estimation arguments
     parser.add_argument(
@@ -172,6 +183,7 @@ def main(args=None):
     stack = spurt.io.SLCStackReader.from_phase_linked_directory(
         parsed_args.inputdir,
         temp_coh_threshold=parsed_args.coh,
+        date_fmt=parsed_args.date_fmt,
     )
 
     # Create general settings

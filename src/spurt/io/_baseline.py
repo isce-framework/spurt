@@ -140,10 +140,14 @@ def _parse_date(date_str: str) -> str:
 
     # ISO 8601 timestamp — take the date part
     # Handles both 'T' separator (2024-07-20T05:26:48Z) and space separator
-    # (2024-07-20 05:26:48.445709+00:00, Python's default datetime.__str__())
+    # (2024-07-20 05:26:48.445709+00:00, Python's default datetime.__str__()).
+    # Require dashes so we don't accidentally match compact formats like
+    # "20200101T120000" (those fall through to the regex fallback).
     if (
-        date_str[:4].isdigit()
-        and len(date_str) > 10
+        len(date_str) > 10
+        and date_str[:4].isdigit()
+        and date_str[4] == "-"
+        and date_str[7] == "-"
         and ("T" in date_str or " " in date_str)
     ):
         return date_str[:10]
